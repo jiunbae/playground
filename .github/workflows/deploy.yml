@@ -1,0 +1,53 @@
+name: Build & Deploy Games
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build SDK
+        run: pnpm --filter @playground/sdk build
+
+      - name: Build all games
+        run: pnpm -r --filter './games/*' build
+
+      - name: Collect build artifacts
+        run: |
+          mkdir -p deploy/games
+          for game in games/*/; do
+            name=$(basename "$game")
+            if [ -d "$game/dist" ]; then
+              cp -r "$game/dist" "deploy/games/$name"
+            fi
+          done
+          # Copy portal
+          cp portal/index.html deploy/games/index.html 2>/dev/null || true
+
+      - name: Deploy to blog repo
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.DEPLOY_TOKEN }}
+          external_repository: jiunbae/jiunbae.github.io
+          publish_branch: main
+          publish_dir: ./deploy/games
+          destination_dir: public/games
+          keep_files: false
+          commit_message: 'deploy: Update playground games from ${{ github.sha }}'
