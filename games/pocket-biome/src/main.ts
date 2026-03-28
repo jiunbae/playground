@@ -3,6 +3,7 @@
  * AI organisms evolve autonomously in a pocket ecosystem
  */
 
+import { PlaygroundSDK } from '@playground/sdk';
 import {
   Creature, Plant, Fence, SpeciesType, Camera, JournalEntry, Discovery,
   PopulationSnapshot, SPECIES_CONFIG, CATEGORY_COLORS, CreatureCategory,
@@ -10,6 +11,14 @@ import {
 } from './types';
 import { TerrainMap, WORLD_SIZE, TILE_SIZE, TERRAIN_COLORS } from './terrain';
 import { createCreature, updateCreature, generateNickname } from './creatures';
+
+// Initialize Playground SDK
+let __sdk: InstanceType<typeof PlaygroundSDK> | null = null;
+try {
+  __sdk = PlaygroundSDK.init({ apiUrl: 'https://api.jiun.dev', game: 'pocket-biome' });
+} catch (_) {
+  // SDK init failed — game continues without it
+}
 
 // ==================== CANVAS SETUP ====================
 const canvas = document.createElement('canvas');
@@ -661,6 +670,16 @@ function render() {
     if (hasSavedData()) {
       drawButton(W / 2 - 100, H * 0.5 + 65, 200, 50, '\u25B6 \uc774\uc5b4\ud558\uae30', '#1a6a3a');
     }
+
+    // Login button
+    const loginY = hasSavedData() ? H * 0.5 + 130 : H * 0.5 + 65;
+    try {
+      const user = __sdk?.auth.getUser();
+      const loginLabel = user ? `\uD83D\uDC64 ${user.name}` : '\uD83D\uDD11 \ub85c\uadf8\uc778';
+      drawButton(W / 2 - 100, loginY, 200, 50, loginLabel, '#334433');
+    } catch (_) {
+      drawButton(W / 2 - 100, loginY, 200, 50, '\uD83D\uDD11 \ub85c\uadf8\uc778', '#334433');
+    }
     return;
   }
 
@@ -1277,6 +1296,13 @@ canvas.addEventListener('mousedown', e => {
         terrain = new TerrainMap(42);
       }
     }
+    // Login button
+    const loginY = hasSavedData() ? H * 0.5 + 130 : H * 0.5 + 65;
+    if (e.clientY > loginY - 5 && e.clientY < loginY + 55) {
+      try {
+        __sdk?.auth.loginIfAvailable().catch(() => {});
+      } catch (_) {}
+    }
     return;
   }
   dragging = true;
@@ -1422,11 +1448,32 @@ canvas.addEventListener('touchend', e => {
 
 // ==================== GAME LOOP ====================
 let lastTime = performance.now();
+let sdkScoreTimer = 0;
+const SDK_SCORE_INTERVAL = 60; // seconds
+
 function gameLoop(now: number) {
   const dt = Math.min((now - lastTime) / 1000, 0.05);
   lastTime = now;
 
-  if (screen === 'sim') update(dt);
+  if (screen === 'sim') {
+    update(dt);
+
+    // Periodic score submission to SDK
+    sdkScoreTimer += dt;
+    if (sdkScoreTimer >= SDK_SCORE_INTERVAL && __sdk) {
+      sdkScoreTimer = 0;
+      try {
+        const speciesCounts = new Map<SpeciesType, number>();
+        creatures.forEach(c => speciesCounts.set(c.species, (speciesCounts.get(c.species) || 0) + 1));
+        const speciesCount = speciesCounts.size;
+        const extinctions = extinctionWarnings.length;
+        __sdk.scores.submit({
+          score: discoveries.length,
+          meta: { speciesCount, simulationDays: getCurrentDay(), extinctions },
+        }).catch(() => {});
+      } catch (_) {}
+    }
+  }
   render();
   requestAnimationFrame(gameLoop);
 }

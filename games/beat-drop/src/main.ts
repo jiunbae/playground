@@ -2,6 +2,29 @@
 // Beat Drop (비트 드롭) - Web Rhythm Game
 // ============================================================
 
+import { PlaygroundSDK } from '@playground/sdk';
+
+// --- SDK Init ---
+let sdk: PlaygroundSDK | null = null;
+try {
+  sdk = PlaygroundSDK.init({ apiUrl: 'https://api.jiun.dev', game: 'beat-drop' });
+} catch { /* SDK init failed, continue offline */ }
+
+let sdkScoreSubmitted = false;
+
+async function handleSdkLogin(): Promise<void> {
+  if (!sdk) return;
+  try {
+    const user = await sdk.auth.loginIfAvailable();
+    sdkLoggedIn = !!user;
+  } catch { /* login failed */ }
+}
+
+let sdkLoggedIn = false;
+try {
+  if (sdk) sdkLoggedIn = !!sdk.auth.getUser();
+} catch { /* ignore */ }
+
 // --- Types ---
 
 type Difficulty = 'Easy' | 'Normal' | 'Hard';
@@ -522,6 +545,14 @@ function drawMenu() {
   ctx.fillStyle = '#333355';
   ctx.font = `12px 'Segoe UI', sans-serif`;
   ctx.fillText('v1.0 - 웹 오디오 리듬 게임', W / 2, H * 0.95);
+
+  // Login button (top-right)
+  const loginBtn = makeButton(W - 52, 8, 44, 36, sdkLoggedIn ? '\u{1F464}' : '\u{1F512}', () => {
+    handleSdkLogin();
+  });
+  loginBtn.color = 'rgba(255,255,255,0.1)';
+  currentButtons.push(loginBtn);
+  drawButton(loginBtn);
 }
 
 // --- Scene: Song Select ---
@@ -667,6 +698,7 @@ function drawSongSelect() {
 
 function startGame() {
   initAudio();
+  sdkScoreSubmitted = false;
 
   const song = SONGS[state.selectedSong];
   state.notes = generateChart(song, state.difficulty);
@@ -1257,6 +1289,28 @@ function endGame() {
   else if (ratio >= 0.85) state.grade = 'A';
   else if (ratio >= 0.70) state.grade = 'B';
   else state.grade = 'C';
+
+  // Submit score to SDK
+  if (sdk && !sdkScoreSubmitted) {
+    sdkScoreSubmitted = true;
+    const song = SONGS[state.selectedSong];
+    try {
+      sdk.scores.submit({
+        score: state.score,
+        meta: {
+          song: song.name,
+          difficulty: state.difficulty,
+          grade: state.grade,
+          maxCombo: state.maxCombo,
+          accuracy: Math.round(ratio * 10000) / 100,
+          perfect: state.judgments.Perfect,
+          great: state.judgments.Great,
+          good: state.judgments.Good,
+          miss: state.judgments.Miss,
+        },
+      });
+    } catch { /* score submission failed */ }
+  }
 }
 
 // --- Scene: Results ---

@@ -78,7 +78,14 @@ export class UI {
           <span style="font-size:12px; opacity:0.8; margin-top:4px; font-family:sans-serif; font-weight:normal;">건물을 직접 만들고 부수세요</span>
         </button>
 
-        <div style="margin-top:60px; color:rgba(255,255,255,0.3); font-size:11px;">
+        <button id="btn-login" class="menu-btn" style="
+          width:280px; padding:12px 16px; margin:20px 6px 6px; border:none; border-radius:14px;
+          font-family:'Black Han Sans',sans-serif; font-size:16px;
+          background: rgba(255,255,255,0.1); color:rgba(255,255,255,0.6);
+          cursor:pointer; transition: transform 0.15s;
+        ">🔑 로그인</button>
+
+        <div style="margin-top:40px; color:rgba(255,255,255,0.3); font-size:11px;">
           터치하여 파괴의 쾌감을 느껴보세요
         </div>
       </div>
@@ -94,6 +101,24 @@ export class UI {
     document.getElementById('btn-campaign').addEventListener('click', () => this._emit('campaign'));
     document.getElementById('btn-sandbox').addEventListener('click', () => this._emit('sandbox'));
     document.getElementById('btn-sandbox-build').addEventListener('click', () => this._emit('sandboxBuild'));
+
+    // SDK login button
+    try {
+      const sdk = window.__sdk;
+      if (sdk) {
+        const user = sdk.auth.getUser();
+        const loginBtn = document.getElementById('btn-login');
+        if (user && loginBtn) loginBtn.textContent = `👤 ${user.name}`;
+        if (loginBtn) {
+          loginBtn.addEventListener('click', async () => {
+            try {
+              const loggedIn = await sdk.auth.loginIfAvailable();
+              if (loggedIn) loginBtn.textContent = `👤 ${loggedIn.name}`;
+            } catch (_) {}
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   // === SANDBOX STRUCTURE SELECT ===

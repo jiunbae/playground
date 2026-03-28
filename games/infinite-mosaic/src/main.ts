@@ -3,6 +3,27 @@
 // Web implementation: Vite + TypeScript + HTML5 Canvas
 // ============================================================
 
+import { PlaygroundSDK } from '@playground/sdk';
+
+// --- SDK Init ---
+let sdk: PlaygroundSDK | null = null;
+try {
+  sdk = PlaygroundSDK.init({ apiUrl: 'https://api.jiun.dev', game: 'infinite-mosaic' });
+} catch { /* SDK init failed, continue offline */ }
+
+let sdkLoggedIn = false;
+try {
+  if (sdk) sdkLoggedIn = !!sdk.auth.getUser();
+} catch { /* ignore */ }
+
+async function handleSdkLogin(): Promise<void> {
+  if (!sdk) return;
+  try {
+    const user = await sdk.auth.loginIfAvailable();
+    sdkLoggedIn = !!user;
+  } catch { /* login failed */ }
+}
+
 // --- Types ---
 
 interface HSL { h: number; s: number; l: number; }
@@ -651,6 +672,23 @@ class Game {
     this.gallery.push(entry);
     this.saveGallery();
 
+    // Submit score to SDK
+    if (sdk) {
+      try {
+        sdk.scores.submit({
+          score: Math.round(this.aestheticScore * 100),
+          meta: {
+            difficulty: this.difficulty,
+            mode: this.gameMode,
+            symmetry: Math.round(this.symmetryScore * 100) / 100,
+            harmony: Math.round(this.harmonyScore * 100) / 100,
+            coherence: Math.round(this.coherenceScore * 100) / 100,
+            timeSeconds: Math.round(this.elapsedTime),
+          },
+        });
+      } catch { /* score submission failed */ }
+    }
+
     if (this.gameMode === 'speed') {
       this.speedPuzzlesCompleted++;
       // Start next puzzle immediately in speed mode
@@ -1116,6 +1154,12 @@ class Game {
       this.galleryScroll = 0;
     }, '#3a506b');
     this.drawButton(ctx, galleryBtn);
+
+    // Login button (top-right)
+    const loginBtn = this.addButton(this.width - 52, 8, 44, 36, sdkLoggedIn ? '\u{1F464}' : '\u{1F512}', () => {
+      handleSdkLogin();
+    }, 'rgba(255,255,255,0.1)');
+    this.drawButton(ctx, loginBtn);
   }
 
   drawMenuBackground(ctx: CanvasRenderingContext2D) {

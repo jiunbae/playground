@@ -85,6 +85,27 @@ export class MainMenuScene extends Phaser.Scene {
       }).setOrigin(0.5);
     }
 
+    // Login button
+    try {
+      const sdk = (window as any).__sdk;
+      if (sdk) {
+        const user = sdk.auth.getUser();
+        const loginLabel = user ? `👤 ${user.name}` : '🔑 로그인';
+        UIHelper.createButton(this, GAME_WIDTH / 2, buttonY, 280, 50,
+          loginLabel, () => {
+            try {
+              sdk.auth.loginIfAvailable().then((loggedIn: any) => {
+                if (loggedIn) {
+                  // Refresh scene to show updated name
+                  this.scene.restart();
+                }
+              }).catch(() => {});
+            } catch (_) {}
+          }, 0x333333, 22);
+        buttonY += spacing;
+      }
+    } catch (_) {}
+
     // Version
     this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 60, 'v0.1.0 MVP', {
       fontSize: '12px', fontFamily: 'sans-serif', color: '#444444',

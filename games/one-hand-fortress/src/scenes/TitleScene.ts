@@ -94,6 +94,29 @@ export class TitleScene extends Phaser.Scene {
       this.showHowToPlay();
     });
 
+    // Login button
+    try {
+      const sdk = (window as any).__sdk;
+      if (sdk) {
+        const user = sdk.auth.getUser();
+        const loginLabel = user ? `👤 ${user.name}` : '🔑 로그인';
+        const loginBg = this.add.rectangle(GAME_WIDTH / 2, helpBtnY + 55, 200, 44, 0x5d4037, 0.7);
+        loginBg.setStrokeStyle(1, 0x8d6e63, 0.6);
+        const loginText = this.add.text(GAME_WIDTH / 2, helpBtnY + 55, loginLabel, {
+          fontSize: '15px', color: '#d7ccc8', fontStyle: 'bold',
+        }).setOrigin(0.5);
+        loginBg.setInteractive();
+        loginBg.on('pointerdown', async () => {
+          try {
+            const loggedIn = await sdk.auth.loginIfAvailable();
+            if (loggedIn) {
+              loginText.setText(`👤 ${loggedIn.name}`);
+            }
+          } catch (_) {}
+        });
+      }
+    } catch (_) {}
+
     // 하단 크레딧
     this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 40, '한 손으로 지키는 우리 마을', {
       fontSize: '10px', color: '#bcaaa4',

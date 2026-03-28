@@ -3,6 +3,30 @@
 // Local multiplayer party game: find the bluffer!
 // ============================================================
 
+import { PlaygroundSDK } from '@playground/sdk';
+
+// --- SDK Init ---
+let sdk: PlaygroundSDK | null = null;
+try {
+  sdk = PlaygroundSDK.init({ apiUrl: 'https://api.jiun.dev', game: 'bluff-party' });
+} catch { /* SDK init failed, continue offline */ }
+
+let sdkLoggedIn = false;
+try {
+  if (sdk) sdkLoggedIn = !!sdk.auth.getUser();
+} catch { /* ignore */ }
+
+async function handleSdkLogin(): Promise<void> {
+  if (!sdk) return;
+  try {
+    const user = await sdk.auth.loginIfAvailable();
+    sdkLoggedIn = !!user;
+    // Update login button if visible
+    const loginBtn = document.getElementById('btn-sdk-login');
+    if (loginBtn) loginBtn.textContent = sdkLoggedIn ? '\u{1F464}' : '\u{1F512}';
+  } catch { /* login failed */ }
+}
+
 // --- Types ---
 
 interface Player {
@@ -450,7 +474,8 @@ function render(): void {
 
 function renderTitle(): void {
   app.innerHTML = `
-    <div class="title-bg" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:20px;text-align:center;width:100%;">
+    <div class="title-bg" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:20px;text-align:center;width:100%;position:relative;">
+      <button id="btn-sdk-login" style="position:absolute;top:12px;right:12px;background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:36px;height:36px;font-size:16px;cursor:pointer;opacity:0.6;">${sdkLoggedIn ? '\u{1F464}' : '\u{1F512}'}</button>
       <div class="mask-emoji" style="margin-bottom:10px;">\uD83C\uDFAD</div>
       <h1 style="font-size:42px;font-weight:900;background:linear-gradient(to right,${COLORS.primary},${COLORS.yellow});-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;">BLUFF PARTY</h1>
       <p style="font-size:18px;color:${COLORS.yellow};margin-bottom:30px;font-weight:700;">블러프 파티</p>
@@ -481,6 +506,7 @@ function renderTitle(): void {
       </div>
     </div>
   `;
+  document.getElementById('btn-sdk-login')!.addEventListener('click', () => handleSdkLogin());
   document.getElementById('btn-start')!.addEventListener('click', () => {
     currentPhase = 'setup';
     render();
@@ -1190,6 +1216,21 @@ function renderFinalResults(): void {
   // Stats
   const totalCaught = roundHistory.filter(r => r.caught).length;
   const totalBlufferWin = roundHistory.filter(r => !r.caught).length;
+
+  // Submit score to SDK
+  if (sdk) {
+    try {
+      sdk.scores.submit({
+        score: winner.score,
+        meta: {
+          rounds: totalRounds,
+          players: players.length,
+          wins: totalCaught,
+          blufferWins: totalBlufferWin,
+        },
+      });
+    } catch { /* score submission failed */ }
+  }
 
   app.innerHTML = `
     <div class="title-bg" style="display:flex;flex-direction:column;align-items:center;height:100%;padding:20px;width:100%;overflow-y:auto;position:relative;">

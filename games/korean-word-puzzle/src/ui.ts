@@ -9,6 +9,13 @@ import { decompose, isHangul, CHOSEONG, JUNGSEONG } from './jamo';
 import { WORD_LENGTH } from './words';
 import { loadStats } from './stats';
 import type { GameStats } from './stats';
+import { PlaygroundSDK } from '@playground/sdk';
+
+// --- SDK Init ---
+let sdk: PlaygroundSDK | null = null;
+try {
+  sdk = PlaygroundSDK.init({ apiUrl: 'https://api.jiun.dev', game: 'korean-word-puzzle' });
+} catch { /* SDK init failed, continue offline */ }
 
 const MAX_GUESSES = 6;
 
@@ -32,11 +39,35 @@ export class UI {
   private messageEl!: HTMLElement;
   private modalOverlay!: HTMLElement;
   private shiftActive: boolean = false;
+  private scoreSubmitted: boolean = false;
 
   constructor() {
-    this.game = new Game(() => this.render());
+    this.game = new Game(() => this.onGameUpdate());
     this.init();
     this.render();
+    // Update login button state on load
+    this.updateLoginButton();
+  }
+
+  private onGameUpdate(): void {
+    // Check if game just ended and we haven't submitted yet
+    if (this.game.state.gameOver && !this.scoreSubmitted) {
+      this.scoreSubmitted = true;
+      this.submitScore();
+    }
+    this.render();
+  }
+
+  private updateLoginButton(): void {
+    if (!sdk) return;
+    try {
+      const user = sdk.auth.getUser();
+      const loginBtn = document.getElementById('btn-login');
+      if (loginBtn) {
+        loginBtn.textContent = user ? '\u{1F464}' : '\u{1F512}';
+        loginBtn.style.opacity = user ? '1' : '0.6';
+      }
+    } catch { /* ignore */ }
   }
 
   private init(): void {
@@ -50,6 +81,7 @@ export class UI {
       <button class="header-btn" id="btn-help" aria-label="도움말">?</button>
       <h1 class="title">한끝차이</h1>
       <div class="header-right">
+        <button class="header-btn" id="btn-login" aria-label="로그인" style="font-size:16px;opacity:0.6;">🔒</button>
         <button class="header-btn" id="btn-stats" aria-label="통계">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="4" y="14" width="4" height="6"/><rect x="10" y="8" width="4" height="12"/><rect x="16" y="4" width="4" height="16"/>
@@ -87,6 +119,7 @@ export class UI {
     // Event listeners
     document.getElementById('btn-help')!.addEventListener('click', () => this.showHelp());
     document.getElementById('btn-stats')!.addEventListener('click', () => this.showStats());
+    document.getElementById('btn-login')!.addEventListener('click', () => this.handleLogin());
 
     // Physical keyboard
     document.addEventListener('keydown', (e) => this.handleKeydown(e));
@@ -257,6 +290,35 @@ export class UI {
       e.preventDefault();
       this.game.inputJamo(jamoFromKey);
     }
+  }
+
+  private async handleLogin(): Promise<void> {
+    if (!sdk) return;
+    try {
+      const user = await sdk.auth.loginIfAvailable();
+      const loginBtn = document.getElementById('btn-login');
+      if (loginBtn) {
+        loginBtn.textContent = user ? '\u{1F464}' : '\u{1F512}';
+        loginBtn.style.opacity = user ? '1' : '0.6';
+      }
+    } catch { /* login failed, continue offline */ }
+  }
+
+  private async submitScore(): Promise<void> {
+    if (!sdk) return;
+    const { puzzleNumber, guesses, won } = this.game.state;
+    const stats = this.game.getStats();
+    try {
+      await sdk.scores.submit({
+        score: guesses.length,
+        meta: {
+          puzzleNumber,
+          guesses: guesses.map(g => g.guess),
+          streak: stats.currentStreak,
+          won,
+        },
+      });
+    } catch { /* score submission failed, continue offline */ }
   }
 
   render(): void {

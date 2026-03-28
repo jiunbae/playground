@@ -89,6 +89,23 @@ export class RunResultScene extends Phaser.Scene {
       }).setOrigin(0.5);
     }
 
+    // Submit score to SDK
+    if (run) {
+      try {
+        const sdk = (window as any).__sdk;
+        sdk?.scores.submit({
+          score,
+          meta: {
+            character: run.character.id,
+            floorsCleared: run.currentFloor,
+            victory: this.victory,
+            totalDamage: run.totalDamageDealt,
+            turnsPlayed: run.turnsPlayed,
+          },
+        }).catch(() => {});
+      } catch (_) {}
+    }
+
     // End run
     gameState.endRun(this.victory);
     gameState.clearSave();

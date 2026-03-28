@@ -602,6 +602,20 @@ export class Game {
 
     const result = this.scoring.calculateScore();
 
+    // Submit score to SDK
+    try {
+      window.__sdk?.scores.submit({
+        score: result.score,
+        meta: {
+          stageId: this.currentLevelId,
+          destructionRate: result.destructionRate,
+          chainCount: result.chainCount,
+          perfectChain: result.perfectChain,
+          stars: result.stars,
+        },
+      }).catch(() => {});
+    } catch (_) {}
+
     // Save result
     if (this.currentLevelId > 0) {
       this.save.saveStageResult(this.currentLevelId, result);

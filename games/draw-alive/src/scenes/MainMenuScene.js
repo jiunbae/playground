@@ -55,6 +55,26 @@ export class MainMenuScene extends Phaser.Scene {
       this._createButton(width / 2, y, width - 80, btnHeight, cfg);
     });
 
+    // Login button
+    try {
+      const sdk = window.__sdk;
+      if (sdk) {
+        const user = sdk.auth.getUser();
+        const loginLabel = user ? `👤 ${user.name}` : '🔑 로그인';
+        const loginBtn = this.add.text(width / 2, height - 70, loginLabel, {
+          fontSize: '14px', fontFamily: 'sans-serif', color: '#999',
+        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+        loginBtn.on('pointerdown', async () => {
+          try {
+            const loggedIn = await sdk.auth.loginIfAvailable();
+            if (loggedIn) {
+              loginBtn.setText(`👤 ${loggedIn.name}`);
+            }
+          } catch (_) {}
+        });
+      }
+    } catch (_) {}
+
     // Version text
     this.add.text(width / 2, height - 30, 'v0.1.0 MVP', {
       fontSize: '12px', fontFamily: 'sans-serif', color: '#CCC',

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { PlaygroundSDK } from '@playground/sdk';
 import { GAME_WIDTH, GAME_HEIGHT, COLORS } from './utils/constants';
 import { MainMenuScene } from './scenes/MainMenuScene';
 import { CharacterSelectScene } from './scenes/CharacterSelectScene';
@@ -36,3 +37,10 @@ const config: Phaser.Types.Core.GameConfig = {
 };
 
 new Phaser.Game(config);
+
+// Initialize Playground SDK
+try {
+  (window as any).__sdk = PlaygroundSDK.init({ apiUrl: 'https://api.jiun.dev', game: 'roguelike-deckbuilder' });
+} catch (_) {
+  // SDK init failed — game continues without it
+}

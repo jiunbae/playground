@@ -11,6 +11,52 @@ import {
   GameScreen, Season, Weather, TimeOfDay, ButtonDef,
 } from './types';
 import { clamp, rand } from './utils';
+import { PlaygroundSDK } from '@playground/sdk';
+
+// --- SDK Init ---
+let sdk: PlaygroundSDK | null = null;
+try {
+  sdk = PlaygroundSDK.init({ apiUrl: 'https://api.jiun.dev', game: 'whisper-garden' });
+} catch { /* SDK init failed, continue offline */ }
+
+let sdkLoggedIn = false;
+try {
+  if (sdk) sdkLoggedIn = !!sdk.auth.getUser();
+} catch { /* ignore */ }
+
+let lastSdkScore = -1;
+let lastSdkSubmitTime = 0;
+
+async function handleSdkLogin(): Promise<void> {
+  if (!sdk) return;
+  try {
+    const user = await sdk.auth.loginIfAvailable();
+    sdkLoggedIn = !!user;
+  } catch { /* login failed */ }
+}
+
+function submitGardenScore(): void {
+  if (!sdk) return;
+  const now = performance.now() / 1000;
+  if (garden.aestheticScore === lastSdkScore) return;
+  if (now - lastSdkSubmitTime < 60) return;
+
+  lastSdkScore = garden.aestheticScore;
+  lastSdkSubmitTime = now;
+
+  const uniqueSpecies = new Set(garden.plants.map(p => p.typeId)).size;
+  try {
+    sdk.scores.submit({
+      score: garden.aestheticScore,
+      meta: {
+        plantsGrown: garden.totalPlantsGrown,
+        level: garden.level,
+        uniqueSpecies,
+        gardenAge: Math.floor(gameTime / DAY_LENGTH),
+      },
+    });
+  } catch { /* score submission failed */ }
+}
 
 // ==================== CONSTANTS ====================
 const GRID_W = 8;
@@ -314,6 +360,8 @@ function buildButtons(): void {
   const H = renderer.getHeight();
 
   if (screen === 'menu') {
+    // Login button (top-right)
+    buttons.push({ x: W - 52, y: 8, w: 44, h: 36, label: sdkLoggedIn ? '\u{1F464}' : '\u{1F512}', action: () => { handleSdkLogin(); } });
     buttons.push({ x: W / 2 - 100, y: H * 0.5, w: 200, h: 50, label: '\uD83C\uDF3F \uC815\uC6D0 \uC2DC\uC791', action: () => {
       if (!welcomeTutorialShown) {
         showWelcomeTutorial = true;
@@ -564,6 +612,8 @@ function gameLoop(now: number): void {
   if (screen === 'garden') {
     updatePlants(dt * TIME_SPEED * 60);
     updateWeather();
+    // Periodically submit score to SDK (every 60s if score changed)
+    submitGardenScore();
   }
   updateParticles(dt);
 

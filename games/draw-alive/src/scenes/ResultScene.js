@@ -66,6 +66,14 @@ export class ResultScene extends Phaser.Scene {
       }).setOrigin(1, 0.5);
     });
 
+    // Submit score to SDK
+    try {
+      window.__sdk?.scores.submit({
+        score: this.stars,
+        meta: { stageId: this.stageId, stars: this.stars, inkUsed: this.inkUsed, timeMs: Math.round(this.timeTaken * 1000) },
+      }).catch(() => {});
+    } catch (_) {}
+
     // Buttons
     const btnY = height * 0.68;
 

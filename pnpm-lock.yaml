@@ -9,6 +9,10 @@ importers:
   .: {}
 
   games/beat-drop:
+    dependencies:
+      '@playground/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
     devDependencies:
       typescript:
         specifier: ^6.0.2
@@ -18,6 +22,10 @@ importers:
         version: 8.0.3(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)
 
   games/bluff-party:
+    dependencies:
+      '@playground/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
     devDependencies:
       typescript:
         specifier: ^6.0.2
@@ -28,6 +36,9 @@ importers:
 
   games/destruction-sandbox:
     dependencies:
+      '@playground/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
       matter-js:
         specifier: ^0.20.0
         version: 0.20.0
@@ -38,6 +49,9 @@ importers:
 
   games/draw-alive:
     dependencies:
+      '@playground/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
       phaser:
         specifier: ^3.90.0
         version: 3.90.0
@@ -46,6 +60,10 @@ importers:
         version: 8.0.3(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)
 
   games/infinite-mosaic:
+    dependencies:
+      '@playground/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
     devDependencies:
       typescript:
         specifier: ^6.0.2
@@ -55,6 +73,10 @@ importers:
         version: 8.0.3(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)
 
   games/korean-word-puzzle:
+    dependencies:
+      '@playground/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
     devDependencies:
       typescript:
         specifier: ^6.0.2
@@ -65,6 +87,9 @@ importers:
 
   games/one-hand-fortress:
     dependencies:
+      '@playground/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
       phaser:
         specifier: ^3.90.0
         version: 3.90.0
@@ -76,6 +101,10 @@ importers:
         version: 8.0.3(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)
 
   games/pocket-biome:
+    dependencies:
+      '@playground/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
     devDependencies:
       typescript:
         specifier: ^6.0.2
@@ -86,6 +115,9 @@ importers:
 
   games/roguelike-deckbuilder:
     dependencies:
+      '@playground/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
       phaser:
         specifier: ^3.90.0
         version: 3.90.0
@@ -98,6 +130,10 @@ importers:
         version: 6.4.1(lightningcss@1.32.0)
 
   games/whisper-garden:
+    dependencies:
+      '@playground/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
     devDependencies:
       typescript:
         specifier: ^6.0.2

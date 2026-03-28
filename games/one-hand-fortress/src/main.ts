@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { PlaygroundSDK } from '@playground/sdk';
 import { GAME_WIDTH, GAME_HEIGHT } from './config/GameConfig';
 import { TitleScene } from './scenes/TitleScene';
 import { StageSelectScene } from './scenes/StageSelectScene';
@@ -28,3 +29,10 @@ const config: Phaser.Types.Core.GameConfig = {
 };
 
 new Phaser.Game(config);
+
+// Initialize Playground SDK
+try {
+  (window as any).__sdk = PlaygroundSDK.init({ apiUrl: 'https://api.jiun.dev', game: 'one-hand-fortress' });
+} catch (_) {
+  // SDK init failed — game continues without it
+}

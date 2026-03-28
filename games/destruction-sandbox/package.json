@@ -9,6 +9,7 @@
     "preview": "vite preview --host"
   },
   "dependencies": {
+    "@playground/sdk": "workspace:*",
     "matter-js": "^0.20.0"
   },
   "devDependencies": {

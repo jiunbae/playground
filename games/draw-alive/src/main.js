@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { PlaygroundSDK } from '@playground/sdk';
 import { BootScene } from './scenes/BootScene.js';
 import { OnboardingScene } from './scenes/OnboardingScene.js';
 import { MainMenuScene } from './scenes/MainMenuScene.js';
@@ -42,3 +43,10 @@ const config = {
 };
 
 const game = new Phaser.Game(config);
+
+// Initialize Playground SDK
+try {
+  window.__sdk = PlaygroundSDK.init({ apiUrl: 'https://api.jiun.dev', game: 'draw-alive' });
+} catch (_) {
+  // SDK init failed — game continues without it
+}

@@ -1,4 +1,12 @@
+import { PlaygroundSDK } from '@playground/sdk';
 import { Game } from './game/Game.js';
+
+// Initialize Playground SDK
+try {
+  window.__sdk = PlaygroundSDK.init({ apiUrl: 'https://api.jiun.dev', game: 'destruction-sandbox' });
+} catch (_) {
+  // SDK init failed — game continues without it
+}
 
 const canvas = document.getElementById('game-canvas');
 const uiLayer = document.getElementById('ui-layer');

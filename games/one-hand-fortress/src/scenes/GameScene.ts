@@ -936,6 +936,21 @@ export class GameScene extends Phaser.Scene {
     this.startButton.setVisible(false);
     this.closeActiveTowerMenu();
 
+    // Submit score to SDK
+    try {
+      const sdk = (window as any).__sdk;
+      sdk?.scores.submit({
+        score: this.stage,
+        meta: {
+          stage: this.stage,
+          wavesCleared: this.currentWave,
+          healthRemaining: this.villageHealth,
+          goldEarned: this.totalGoldEarned,
+          victory,
+        },
+      }).catch(() => {});
+    } catch (_) {}
+
     // 진행도 저장
     if (victory) {
       const saved = localStorage.getItem('ohf_progress');
