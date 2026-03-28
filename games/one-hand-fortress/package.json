@@ -1,0 +1,19 @@
+{
+  "name": "@playground/one-hand-fortress",
+  "version": "1.0.0",
+  "description": "One Hand Fortress - 잠든 마을을 깨우는 따뜻한 전략 타워디펜스",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "phaser": "^3.90.0",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3"
+  }
+}

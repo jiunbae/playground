@@ -1,0 +1,17 @@
+{
+  "name": "@playground/destruction-sandbox",
+  "version": "0.1.0",
+  "description": "Physics-based destruction sandbox game - 부숴볼래?",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host"
+  },
+  "dependencies": {
+    "matter-js": "^0.20.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}

@@ -1,0 +1,591 @@
+/**
+ * UI rendering and interaction
+ */
+
+import './styles.css';
+import { Game } from './game';
+import { JamoStatus, type GuessFeedback, type SyllableFeedback } from './engine';
+import { decompose, isHangul, CHOSEONG, JUNGSEONG } from './jamo';
+import { WORD_LENGTH } from './words';
+import { loadStats } from './stats';
+import type { GameStats } from './stats';
+
+const MAX_GUESSES = 6;
+
+// Korean keyboard layout
+const KEYBOARD_ROWS = [
+  ['ㅂ', 'ㅈ', 'ㄷ', 'ㄱ', 'ㅅ', 'ㅛ', 'ㅕ', 'ㅑ', 'ㅐ', 'ㅔ'],
+  ['ㅁ', 'ㄴ', 'ㅇ', 'ㄹ', 'ㅎ', 'ㅗ', 'ㅓ', 'ㅏ', 'ㅣ'],
+  ['ENTER', 'ㅋ', 'ㅌ', 'ㅊ', 'ㅍ', 'ㅠ', 'ㅜ', 'ㅡ', 'BACK'],
+];
+
+// Shift (double consonant) mappings
+const SHIFT_MAP: Record<string, string> = {
+  'ㅂ': 'ㅃ', 'ㅈ': 'ㅉ', 'ㄷ': 'ㄸ', 'ㄱ': 'ㄲ', 'ㅅ': 'ㅆ',
+  'ㅐ': 'ㅒ', 'ㅔ': 'ㅖ',
+};
+
+export class UI {
+  private game: Game;
+  private boardEl!: HTMLElement;
+  private keyboardEl!: HTMLElement;
+  private messageEl!: HTMLElement;
+  private modalOverlay!: HTMLElement;
+  private shiftActive: boolean = false;
+
+  constructor() {
+    this.game = new Game(() => this.render());
+    this.init();
+    this.render();
+  }
+
+  private init(): void {
+    const app = document.getElementById('app')!;
+    app.innerHTML = '';
+
+    // Header
+    const header = document.createElement('header');
+    header.className = 'header';
+    header.innerHTML = `
+      <button class="header-btn" id="btn-help" aria-label="도움말">?</button>
+      <h1 class="title">한끝차이</h1>
+      <div class="header-right">
+        <button class="header-btn" id="btn-stats" aria-label="통계">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="4" y="14" width="4" height="6"/><rect x="10" y="8" width="4" height="12"/><rect x="16" y="4" width="4" height="16"/>
+          </svg>
+        </button>
+      </div>
+    `;
+    app.appendChild(header);
+
+    // Message toast
+    this.messageEl = document.createElement('div');
+    this.messageEl.className = 'message-container';
+    app.appendChild(this.messageEl);
+
+    // Board
+    this.boardEl = document.createElement('div');
+    this.boardEl.className = 'board-container';
+    this.createBoard();
+    app.appendChild(this.boardEl);
+
+    // Keyboard
+    this.keyboardEl = document.createElement('div');
+    this.keyboardEl.className = 'keyboard';
+    this.createKeyboard();
+    app.appendChild(this.keyboardEl);
+
+    // Modal overlay
+    this.modalOverlay = document.createElement('div');
+    this.modalOverlay.className = 'modal-overlay hidden';
+    this.modalOverlay.addEventListener('click', (e) => {
+      if (e.target === this.modalOverlay) this.closeModal();
+    });
+    app.appendChild(this.modalOverlay);
+
+    // Event listeners
+    document.getElementById('btn-help')!.addEventListener('click', () => this.showHelp());
+    document.getElementById('btn-stats')!.addEventListener('click', () => this.showStats());
+
+    // Physical keyboard
+    document.addEventListener('keydown', (e) => this.handleKeydown(e));
+
+    // First-time user: auto-show help if no stats exist
+    const stats = loadStats();
+    if (stats.gamesPlayed === 0) {
+      setTimeout(() => this.showHelp(), 300);
+    }
+  }
+
+  private createBoard(): void {
+    const board = document.createElement('div');
+    board.className = 'board';
+
+    for (let row = 0; row < MAX_GUESSES; row++) {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'board-row';
+      rowEl.dataset.row = String(row);
+
+      for (let col = 0; col < WORD_LENGTH; col++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.dataset.row = String(row);
+        cell.dataset.col = String(col);
+
+        // Each cell has 3 jamo slots (cho, jung, jong)
+        const jamoContainer = document.createElement('div');
+        jamoContainer.className = 'jamo-slots';
+
+        const choSlot = document.createElement('span');
+        choSlot.className = 'jamo-slot cho';
+        const jungSlot = document.createElement('span');
+        jungSlot.className = 'jamo-slot jung';
+        const jongSlot = document.createElement('span');
+        jongSlot.className = 'jamo-slot jong';
+
+        jamoContainer.appendChild(choSlot);
+        jamoContainer.appendChild(jungSlot);
+        jamoContainer.appendChild(jongSlot);
+
+        // The main character display
+        const charDisplay = document.createElement('div');
+        charDisplay.className = 'cell-char';
+
+        cell.appendChild(charDisplay);
+        cell.appendChild(jamoContainer);
+        rowEl.appendChild(cell);
+      }
+
+      board.appendChild(rowEl);
+    }
+
+    this.boardEl.innerHTML = '';
+    this.boardEl.appendChild(board);
+  }
+
+  private createKeyboard(): void {
+    this.keyboardEl.innerHTML = '';
+
+    for (const row of KEYBOARD_ROWS) {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'keyboard-row';
+
+      for (const key of row) {
+        const btn = document.createElement('button');
+        btn.className = 'key';
+        btn.dataset.key = key;
+
+        if (key === 'ENTER') {
+          btn.textContent = '확인';
+          btn.classList.add('key-wide', 'key-enter');
+        } else if (key === 'BACK') {
+          btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>`;
+          btn.classList.add('key-wide', 'key-back');
+        } else {
+          btn.textContent = key;
+          if (SHIFT_MAP[key]) {
+            btn.classList.add('has-shift');
+          }
+        }
+
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.handleKey(key);
+        });
+
+        // Long press for shift (double consonant)
+        if (SHIFT_MAP[key]) {
+          let pressTimer: number | null = null;
+          btn.addEventListener('pointerdown', () => {
+            pressTimer = window.setTimeout(() => {
+              this.handleKey(SHIFT_MAP[key]);
+              pressTimer = null;
+            }, 400);
+          });
+          btn.addEventListener('pointerup', () => {
+            if (pressTimer !== null) {
+              clearTimeout(pressTimer);
+              pressTimer = null;
+            }
+          });
+          btn.addEventListener('pointerleave', () => {
+            if (pressTimer !== null) {
+              clearTimeout(pressTimer);
+              pressTimer = null;
+            }
+          });
+        }
+
+        rowEl.appendChild(btn);
+      }
+
+      this.keyboardEl.appendChild(rowEl);
+    }
+
+    // Shift row for double consonants
+    const shiftRow = document.createElement('div');
+    shiftRow.className = 'keyboard-row shift-row';
+    const shiftKeys = ['ㅃ', 'ㅉ', 'ㄸ', 'ㄲ', 'ㅆ', 'ㅒ', 'ㅖ'];
+    for (const key of shiftKeys) {
+      const btn = document.createElement('button');
+      btn.className = 'key key-shift';
+      btn.dataset.key = key;
+      btn.textContent = key;
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.handleKey(key);
+      });
+      shiftRow.appendChild(btn);
+    }
+    this.keyboardEl.appendChild(shiftRow);
+  }
+
+  private handleKey(key: string): void {
+    if (key === 'ENTER') {
+      this.game.submit();
+    } else if (key === 'BACK') {
+      this.game.backspace();
+    } else {
+      this.game.inputJamo(key);
+    }
+  }
+
+  private handleKeydown(e: KeyboardEvent): void {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (this.modalOverlay.classList.contains('hidden') === false) {
+      if (e.key === 'Escape') this.closeModal();
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      this.game.submit();
+      return;
+    }
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      this.game.backspace();
+      return;
+    }
+
+    // Map physical Korean keyboard input
+    // When the OS Korean IME is off, the browser sends the raw Korean jamo
+    // We handle both raw jamo and romanized input
+    const jamoFromKey = physicalKeyToJamo(e.key, e.shiftKey);
+    if (jamoFromKey) {
+      e.preventDefault();
+      this.game.inputJamo(jamoFromKey);
+    }
+  }
+
+  render(): void {
+    this.renderBoard();
+    this.renderKeyboard();
+    this.renderMessage();
+  }
+
+  private renderBoard(): void {
+    const { guesses, currentInput, gameOver } = this.game.state;
+
+    for (let row = 0; row < MAX_GUESSES; row++) {
+      const rowEl = this.boardEl.querySelector(`.board-row[data-row="${row}"]`)!;
+
+      if (row < guesses.length) {
+        // Completed guess row
+        this.renderCompletedRow(rowEl, guesses[row], row);
+      } else if (row === guesses.length && !gameOver) {
+        // Current input row
+        this.renderInputRow(rowEl, currentInput);
+      } else {
+        // Empty row
+        this.renderEmptyRow(rowEl);
+      }
+    }
+  }
+
+  private renderCompletedRow(rowEl: Element, feedback: GuessFeedback, rowIndex: number): void {
+    for (let col = 0; col < WORD_LENGTH; col++) {
+      const cell = rowEl.querySelector(`.cell[data-col="${col}"]`) as HTMLElement;
+      const syl = feedback.syllables[col];
+      const charDisplay = cell.querySelector('.cell-char') as HTMLElement;
+      const jamoSlots = cell.querySelector('.jamo-slots') as HTMLElement;
+
+      cell.className = 'cell revealed';
+
+      charDisplay.textContent = syl.char;
+      charDisplay.style.display = 'none'; // Hide full char, show jamo
+
+      jamoSlots.style.display = 'flex';
+      const choSlot = jamoSlots.querySelector('.cho') as HTMLElement;
+      const jungSlot = jamoSlots.querySelector('.jung') as HTMLElement;
+      const jongSlot = jamoSlots.querySelector('.jong') as HTMLElement;
+
+      choSlot.textContent = syl.jamoResult.cho;
+      choSlot.className = `jamo-slot cho ${statusClass(syl.cho)}`;
+
+      jungSlot.textContent = syl.jamoResult.jung;
+      jungSlot.className = `jamo-slot jung ${statusClass(syl.jung)}`;
+
+      if (syl.jamoResult.jong && syl.jong !== null) {
+        jongSlot.textContent = syl.jamoResult.jong;
+        jongSlot.className = `jamo-slot jong ${statusClass(syl.jong)}`;
+        jongSlot.style.display = 'flex';
+      } else {
+        jongSlot.textContent = '';
+        jongSlot.className = 'jamo-slot jong';
+        jongSlot.style.display = 'none';
+      }
+
+      // Flip animation delay
+      cell.style.animationDelay = `${col * 300}ms`;
+      cell.classList.add('flip');
+    }
+  }
+
+  private renderInputRow(rowEl: Element, input: string): void {
+    const chars = [...input];
+    for (let col = 0; col < WORD_LENGTH; col++) {
+      const cell = rowEl.querySelector(`.cell[data-col="${col}"]`) as HTMLElement;
+      const charDisplay = cell.querySelector('.cell-char') as HTMLElement;
+      const jamoSlots = cell.querySelector('.jamo-slots') as HTMLElement;
+
+      cell.className = 'cell';
+      jamoSlots.style.display = 'none';
+      cell.style.animationDelay = '';
+
+      if (col < chars.length) {
+        charDisplay.style.display = 'flex';
+        charDisplay.textContent = chars[col];
+        cell.classList.add('filled');
+        // Pop animation
+        cell.classList.add('pop');
+      } else {
+        charDisplay.style.display = 'flex';
+        charDisplay.textContent = '';
+        cell.classList.remove('filled', 'pop');
+      }
+    }
+  }
+
+  private renderEmptyRow(rowEl: Element): void {
+    for (let col = 0; col < WORD_LENGTH; col++) {
+      const cell = rowEl.querySelector(`.cell[data-col="${col}"]`) as HTMLElement;
+      const charDisplay = cell.querySelector('.cell-char') as HTMLElement;
+      const jamoSlots = cell.querySelector('.jamo-slots') as HTMLElement;
+
+      cell.className = 'cell';
+      cell.style.animationDelay = '';
+      charDisplay.style.display = 'flex';
+      charDisplay.textContent = '';
+      jamoSlots.style.display = 'none';
+    }
+  }
+
+  private renderKeyboard(): void {
+    const { jamoStatuses } = this.game.state;
+    const keys = this.keyboardEl.querySelectorAll('.key');
+    for (const btn of keys) {
+      const key = (btn as HTMLElement).dataset.key;
+      if (!key || key === 'ENTER' || key === 'BACK') continue;
+      const status = jamoStatuses.get(key);
+      (btn as HTMLElement).classList.remove('key-correct', 'key-present', 'key-absent', 'key-misplaced');
+      if (status) {
+        (btn as HTMLElement).classList.add(`key-${status}`);
+      }
+    }
+  }
+
+  private renderMessage(): void {
+    const { message } = this.game.state;
+    if (message) {
+      this.messageEl.textContent = message;
+      this.messageEl.classList.add('show');
+    } else {
+      this.messageEl.classList.remove('show');
+    }
+  }
+
+  private showHelp(): void {
+    this.showModal(`
+      <div class="modal-content help-modal">
+        <h2>한끝차이 - 한글 단어 퍼즐</h2>
+        <p>${WORD_LENGTH}글자 한국어 단어를 6번 안에 맞혀보세요!</p>
+        <p>각 추측 후 자모(초성/중성/종성) 단위로 힌트가 주어집니다.</p>
+
+        <div class="help-section">
+          <h3>힌트 색상</h3>
+          <div class="help-example">
+            <span class="jamo-slot correct">ㅎ</span>
+            <span class="help-label">정확한 위치의 자모</span>
+          </div>
+          <div class="help-example">
+            <span class="jamo-slot present">ㅏ</span>
+            <span class="help-label">포함되지만 다른 위치</span>
+          </div>
+          <div class="help-example">
+            <span class="jamo-slot misplaced">ㄴ</span>
+            <span class="help-label">같은 글자 내 다른 위치 (초성↔종성)</span>
+          </div>
+          <div class="help-example">
+            <span class="jamo-slot absent">ㅋ</span>
+            <span class="help-label">단어에 없는 자모</span>
+          </div>
+        </div>
+
+        <div class="help-section">
+          <h3>쌍자음 입력</h3>
+          <p>ㅃ, ㅉ, ㄸ, ㄲ, ㅆ 등은 아래쪽 키보드 행을 사용하거나<br>해당 키를 길게 누르세요.</p>
+        </div>
+
+        <p class="help-footer">매일 새로운 퍼즐이 출제됩니다!</p>
+        <button class="modal-close-btn" onclick="this.closest('.modal-overlay').classList.add('hidden')">닫기</button>
+      </div>
+    `);
+  }
+
+  showStats(): void {
+    const stats = this.game.getStats();
+    const winPct = this.game.getWinPercentage();
+    const avgGuesses = this.game.getAverageGuesses();
+    const maxDist = Math.max(...stats.guessDistribution, 1);
+
+    const totalGuesses = stats.guessDistribution.reduce((a, b) => a + b, 0);
+    const distHtml = stats.guessDistribution.map((count, i) => {
+      const width = Math.max((count / maxDist) * 100, count > 0 ? 8 : 0);
+      const highlight = this.game.state.won && this.game.state.guesses.length === i + 1;
+      const pct = totalGuesses > 0 ? Math.round((count / totalGuesses) * 100) : 0;
+      return `
+        <div class="dist-row">
+          <span class="dist-label">${i + 1}</span>
+          <div class="dist-bar-container">
+            <div class="dist-bar ${highlight ? 'dist-highlight' : ''}" style="width: ${width}%; animation-delay: ${i * 0.1}s;">
+              <span class="dist-count">${count}</span>
+              ${totalGuesses > 0 ? `<span class="dist-pct">${pct}%</span>` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const shareButton = this.game.state.gameOver ? `
+      <button class="share-btn" id="share-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16,6 12,2 8,6"/><line x1="12" y1="2" x2="12" y2="15"/>
+        </svg>
+        결과 공유하기
+      </button>
+    ` : '';
+
+    const streakCelebration = stats.currentStreak > 7 ? `
+      <div class="streak-celebration">
+        🔥 ${stats.currentStreak}연승 달성! 대단해요! 🔥
+      </div>
+    ` : '';
+
+    this.showModal(`
+      <div class="modal-content stats-modal">
+        <h2>통계</h2>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <div class="stat-value">${stats.gamesPlayed}</div>
+            <div class="stat-label">게임 수</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">${winPct}</div>
+            <div class="stat-label">승률 %</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">${stats.currentStreak}</div>
+            <div class="stat-label">현재 연승</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">${stats.maxStreak}</div>
+            <div class="stat-label">최대 연승</div>
+          </div>
+        </div>
+
+        ${streakCelebration}
+
+        <h3>추측 분포</h3>
+        <div class="dist-chart">
+          ${distHtml}
+        </div>
+
+        ${shareButton}
+        <button class="modal-close-btn" onclick="this.closest('.modal-overlay').classList.add('hidden')">닫기</button>
+      </div>
+    `);
+
+    if (this.game.state.gameOver) {
+      const shareBtn = document.getElementById('share-btn');
+      if (shareBtn) {
+        shareBtn.addEventListener('click', () => this.shareResult());
+      }
+    }
+  }
+
+  private shareResult(): void {
+    const text = this.game.getShareText();
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => {
+        this.showCopyToast();
+      }).catch(() => {
+        this.fallbackCopy(text);
+      });
+    } else {
+      this.fallbackCopy(text);
+    }
+  }
+
+  private fallbackCopy(text: string): void {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    this.showCopyToast();
+  }
+
+  private showCopyToast(): void {
+    this.game.showMessage('클립보드에 복사되었습니다! 📋');
+  }
+
+  private showModal(html: string): void {
+    this.modalOverlay.innerHTML = html;
+    this.modalOverlay.classList.remove('hidden');
+  }
+
+  private closeModal(): void {
+    this.modalOverlay.classList.add('hidden');
+  }
+}
+
+function statusClass(status: JamoStatus): string {
+  switch (status) {
+    case JamoStatus.Correct: return 'correct';
+    case JamoStatus.Present: return 'present';
+    case JamoStatus.Absent: return 'absent';
+    case JamoStatus.Misplaced: return 'misplaced';
+  }
+}
+
+// Physical keyboard Korean key mapping (2벌식)
+const ROMAN_TO_JAMO: Record<string, string> = {
+  'q': 'ㅂ', 'w': 'ㅈ', 'e': 'ㄷ', 'r': 'ㄱ', 't': 'ㅅ',
+  'y': 'ㅛ', 'u': 'ㅕ', 'i': 'ㅑ', 'o': 'ㅐ', 'p': 'ㅔ',
+  'a': 'ㅁ', 's': 'ㄴ', 'd': 'ㅇ', 'f': 'ㄹ', 'g': 'ㅎ',
+  'h': 'ㅗ', 'j': 'ㅓ', 'k': 'ㅏ', 'l': 'ㅣ',
+  'z': 'ㅋ', 'x': 'ㅌ', 'c': 'ㅊ', 'v': 'ㅍ',
+  'b': 'ㅠ', 'n': 'ㅜ', 'm': 'ㅡ',
+  // Shift variants
+  'Q': 'ㅃ', 'W': 'ㅉ', 'E': 'ㄸ', 'R': 'ㄲ', 'T': 'ㅆ',
+  'O': 'ㅒ', 'P': 'ㅖ',
+};
+
+// Direct jamo input (when Korean IME sends jamo directly)
+const DIRECT_JAMO = new Set([
+  ...CHOSEONG, ...JUNGSEONG,
+  'ㅃ', 'ㅉ', 'ㄸ', 'ㄲ', 'ㅆ', 'ㅒ', 'ㅖ',
+]);
+
+function physicalKeyToJamo(key: string, shiftKey: boolean): string | null {
+  // Direct jamo input
+  if (DIRECT_JAMO.has(key)) return key;
+
+  // Roman key mapping
+  if (shiftKey) {
+    const upper = key.toUpperCase();
+    if (ROMAN_TO_JAMO[upper]) return ROMAN_TO_JAMO[upper];
+  }
+  const lower = key.toLowerCase();
+  if (ROMAN_TO_JAMO[lower]) return ROMAN_TO_JAMO[lower];
+
+  return null;
+}
+
+// Bootstrap
+new UI();

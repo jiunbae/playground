@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Portal - 10 Games</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f0f1a;color:#fff;font-family:'Apple SD Gothic Neo','Segoe UI',sans-serif;min-height:100vh;padding:24px}
+h1{text-align:center;font-size:32px;margin-bottom:8px;background:linear-gradient(135deg,#6366f1,#ec4899,#f97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{text-align:center;color:#888;margin-bottom:32px;font-size:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;max-width:1200px;margin:0 auto}
+.card{background:linear-gradient(135deg,#1a1a2e,#16213e);border:1px solid #333;border-radius:16px;padding:24px;cursor:pointer;transition:all .2s;text-decoration:none;color:#fff;display:block}
+.card:hover{border-color:#6366f1;transform:translateY(-4px);box-shadow:0 8px 24px rgba(99,102,241,.15)}
+.card .icon{font-size:40px;margin-bottom:8px}
+.card h2{font-size:18px;margin-bottom:4px}
+.card .ko{font-size:13px;color:#aaa;margin-bottom:8px}
+.card .desc{font-size:12px;color:#666;line-height:1.5}
+.card .tech{display:inline-block;margin-top:8px;padding:2px 8px;border-radius:4px;background:#ffffff10;font-size:10px;color:#888}
+.status{text-align:center;margin-top:32px;font-size:12px;color:#555}
+</style>
+</head>
+<body>
+<h1>Game Portal</h1>
+<p class="subtitle">10개 게임 테스트 페이지 - 각 카드를 클릭하여 플레이</p>
+<div class="grid">
+
+<a class="card" href="korean-word-puzzle/">
+<div class="icon">🇰🇷</div>
+<h2>한끝차이</h2>
+<div class="ko">Korean Word Puzzle</div>
+<div class="desc">한글 자모 분리 피드백 워드 퍼즐. 매일 새로운 단어를 6회 이내에 맞히세요.</div>
+<span class="tech">Vite + TypeScript</span>
+</a>
+
+<a class="card" href="beat-drop/">
+<div class="icon">🎵</div>
+<h2>비트 드롭</h2>
+<div class="ko">Beat Drop</div>
+<div class="desc">Web Audio 기반 리듬 액션 게임. 4레인 노트를 비트에 맞춰 치세요.</div>
+<span class="tech">Vite + TS + Web Audio</span>
+</a>
+
+<a class="card" href="bluff-party/">
+<div class="icon">🎭</div>
+<h2>블러프 파티</h2>
+<div class="ko">Bluff Party</div>
+<div class="desc">2-8인 로컬 멀티 파티 게임. 블러퍼를 찾아내세요!</div>
+<span class="tech">Vite + TypeScript</span>
+</a>
+
+<a class="card" href="infinite-mosaic/">
+<div class="icon">🎨</div>
+<h2>인피니트 모자이크</h2>
+<div class="ko">Infinite Mosaic</div>
+<div class="desc">프로시저럴 모자이크 퍼즐. 색상 조화를 만들어 아름다운 작품을 완성하세요.</div>
+<span class="tech">Vite + TS + Canvas</span>
+</a>
+
+<a class="card" href="draw-alive/">
+<div class="icon">✏️</div>
+<h2>그려서 살려내기</h2>
+<div class="ko">Draw Alive</div>
+<div class="desc">그림을 그리면 물리 객체가 되는 퍼즐 게임. Matter.js 물리 엔진 사용.</div>
+<span class="tech">Phaser 3 + Matter.js</span>
+</a>
+
+<a class="card" href="one-hand-fortress/">
+<div class="icon">🏰</div>
+<h2>한 손의 요새</h2>
+<div class="ko">One Hand Fortress</div>
+<div class="desc">한 손으로 타워를 배치하여 마을을 지키는 타워 디펜스.</div>
+<span class="tech">Phaser 3 + TypeScript</span>
+</a>
+
+<a class="card" href="destruction-sandbox/">
+<div class="icon">💥</div>
+<h2>부숴볼래?</h2>
+<div class="ko">Destruction Sandbox</div>
+<div class="desc">물리 기반 파괴 샌드박스. 건물을 부수고 슬로모션 리플레이를 감상하세요.</div>
+<span class="tech">Matter.js + Vite</span>
+</a>
+
+<a class="card" href="roguelike-deckbuilder/">
+<div class="icon">🃏</div>
+<h2>카드의 탑</h2>
+<div class="ko">Roguelike Deckbuilder</div>
+<div class="desc">턴제 로그라이크 카드 RPG. 덱을 빌드하며 던전을 탐험하세요.</div>
+<span class="tech">Phaser 3 + TypeScript</span>
+</a>
+
+<a class="card" href="whisper-garden/">
+<div class="icon">🌿</div>
+<h2>속삭이는 정원</h2>
+<div class="ko">Whisper Garden</div>
+<div class="desc">L-System 식물 생성, 사계절 변화가 있는 힐링 정원 시뮬레이션.</div>
+<span class="tech">Vite + TS + Canvas</span>
+</a>
+
+<a class="card" href="pocket-biome/">
+<div class="icon">🌍</div>
+<h2>포켓 바이옴</h2>
+<div class="ko">Pocket Biome</div>
+<div class="desc">AI 생물이 자율 진화하는 생태계 시뮬레이션. 관찰하고 발견하세요.</div>
+<span class="tech">Vite + TS + Canvas</span>
+</a>
+
+</div>
+<p class="status">Total: 20,940 lines of code across 84 modules</p>
+</body>
+</html>
