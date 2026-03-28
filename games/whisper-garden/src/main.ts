@@ -27,12 +27,61 @@ try {
 let lastSdkScore = -1;
 let lastSdkSubmitTime = 0;
 
+let lastCloudSaveTime = 0;
+
 async function handleSdkLogin(): Promise<void> {
   if (!sdk) return;
   try {
     const user = await sdk.auth.loginIfAvailable();
     sdkLoggedIn = !!user;
+    if (user) {
+      await cloudSyncOnLogin();
+    }
   } catch { /* login failed */ }
+}
+
+function showCloudToast(msg: string): void {
+  addToast(msg);
+}
+
+async function cloudSaveGarden(): Promise<void> {
+  if (!sdk) return;
+  try {
+    // Always save locally first (offline-first)
+    save();
+    await sdk.saves.save({ garden, gameTime, nextPlantId, updatedAt: Date.now() });
+    showCloudToast('\u2601\uFE0F \uC800\uC7A5\uB428');
+  } catch { /* cloud save failed, continue offline */ }
+}
+
+async function cloudSyncOnLogin(): Promise<void> {
+  if (!sdk) return;
+  try {
+    const cloudData = await sdk.saves.load<{ garden: GardenState; gameTime: number; nextPlantId: number; updatedAt: number }>();
+    if (!cloudData) {
+      await cloudSaveGarden();
+      return;
+    }
+
+    // Compare updatedAt: local save timestamp vs cloud
+    const localRaw = localStorage.getItem('whisper-garden-save');
+    let localUpdatedAt = 0;
+    if (localRaw) {
+      try {
+        const localData = JSON.parse(localRaw);
+        localUpdatedAt = localData.updatedAt || 0;
+      } catch { /* ignore */ }
+    }
+
+    if ((cloudData.updatedAt || 0) > localUpdatedAt) {
+      garden = { ...garden, ...cloudData.garden };
+      gameTime = cloudData.gameTime || 0;
+      nextPlantId = cloudData.nextPlantId || 1;
+      showCloudToast('\u2601\uFE0F \uD074\uB77C\uC6B0\uB4DC\uC5D0\uC11C \uBCF5\uC6D0\uB428');
+    } else {
+      await cloudSaveGarden();
+    }
+  } catch { /* cloud sync failed */ }
 }
 
 function submitGardenScore(): void {
@@ -643,10 +692,17 @@ function loadSave(): void {
 }
 
 function save(): void {
-  localStorage.setItem('whisper-garden-save', JSON.stringify({ garden, gameTime, nextPlantId }));
+  localStorage.setItem('whisper-garden-save', JSON.stringify({ garden, gameTime, nextPlantId, updatedAt: Date.now() }));
 }
 
 setInterval(save, 10000);
+
+// Cloud save every 60s (same interval as score submission)
+setInterval(() => {
+  if (screen === 'garden') {
+    cloudSaveGarden();
+  }
+}, 60000);
 
 // ==================== START ====================
 loadSave();

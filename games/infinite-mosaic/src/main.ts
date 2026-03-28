@@ -319,6 +319,96 @@ function generatePuzzle(difficulty: Difficulty, seed: number): PieceData[] {
   return pieces;
 }
 
+// --- Leaderboard ---
+
+const LEADERBOARD_KEY = 'playground_infinite-mosaic_leaderboard';
+const LEADERBOARD_MAX = 50;
+
+interface LeaderboardRecord {
+  name: string;
+  score: number;
+  difficulty: string;
+  timestamp: number;
+}
+
+function loadMosaicLeaderboard(): LeaderboardRecord[] {
+  try {
+    const data = localStorage.getItem(LEADERBOARD_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch { return []; }
+}
+
+function saveToMosaicLeaderboard(entry: LeaderboardRecord): void {
+  const entries = loadMosaicLeaderboard();
+  entries.push(entry);
+  entries.sort((a, b) => b.score - a.score);
+  if (entries.length > LEADERBOARD_MAX) entries.length = LEADERBOARD_MAX;
+  localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(entries));
+}
+
+let mosaicLeaderboardOverlay: HTMLDivElement | null = null;
+
+function showMosaicLeaderboard(): void {
+  if (mosaicLeaderboardOverlay) return;
+
+  function renderOverlay() {
+    const all = loadMosaicLeaderboard();
+    const top10 = all.sort((a, b) => b.score - a.score).slice(0, 10);
+
+    let myName = '나';
+    try { if (sdk) { const u = sdk.auth.getUser(); if (u) myName = u.name; } } catch {}
+    const myIdx = all.findIndex(e => e.name === myName);
+
+    const diffLabel: Record<string, string> = { easy: '쉬움', medium: '보통', hard: '어려움' };
+
+    const rowsHtml = top10.length > 0
+      ? top10.map((e, i) => `
+        <tr style="${e.name === myName ? 'background:rgba(255,204,0,0.15);' : ''}">
+          <td style="padding:6px 8px;text-align:center;font-weight:bold;">${i + 1}</td>
+          <td style="padding:6px 8px;">${e.name}</td>
+          <td style="padding:6px 8px;text-align:center;">${e.score}</td>
+          <td style="padding:6px 8px;text-align:center;">${diffLabel[e.difficulty] || e.difficulty}</td>
+          <td style="padding:6px 8px;text-align:center;font-size:11px;color:#888;">${new Date(e.timestamp).toLocaleDateString('ko-KR')}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="5" style="padding:20px;text-align:center;color:#888;">아직 기록이 없습니다</td></tr>';
+
+    const myRankHtml = myIdx >= 0
+      ? `<div style="margin-top:12px;padding:8px;background:rgba(255,204,0,0.1);border-radius:8px;font-size:13px;"><strong>내 순위:</strong> ${myIdx + 1}위 | ${all[myIdx].score}점</div>`
+      : '';
+
+    mosaicLeaderboardOverlay!.innerHTML = `
+      <div style="position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:1000;">
+        <div style="background:#1a1a2e;border:1px solid rgba(100,180,100,0.4);border-radius:16px;padding:24px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;">
+          <h2 style="margin:0 0 12px;text-align:center;">🏆 리더보드</h2>
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead><tr style="border-bottom:2px solid rgba(255,255,255,0.2);">
+              <th style="padding:6px 8px;">순위</th><th style="padding:6px 8px;text-align:left;">이름</th>
+              <th style="padding:6px 8px;">미적 점수</th><th style="padding:6px 8px;">난이도</th>
+              <th style="padding:6px 8px;">날짜</th>
+            </tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+          ${myRankHtml}
+          <button id="mosaic-lb-close" style="display:block;margin:16px auto 0;padding:10px 32px;border:none;border-radius:8px;background:#2d6a4f;color:#fff;font-size:16px;cursor:pointer;">닫기</button>
+        </div>
+      </div>`;
+
+    mosaicLeaderboardOverlay!.querySelector('#mosaic-lb-close')!.addEventListener('click', closeMosaicLeaderboard);
+  }
+
+  mosaicLeaderboardOverlay = document.createElement('div');
+  mosaicLeaderboardOverlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:1000;';
+  document.body.appendChild(mosaicLeaderboardOverlay);
+  renderOverlay();
+}
+
+function closeMosaicLeaderboard(): void {
+  if (mosaicLeaderboardOverlay) {
+    mosaicLeaderboardOverlay.remove();
+    mosaicLeaderboardOverlay = null;
+  }
+}
+
 // --- Main Game Class ---
 
 class Game {
@@ -671,6 +761,18 @@ class Game {
     this.lastCompletedEntry = entry;
     this.gallery.push(entry);
     this.saveGallery();
+
+    // Save to local leaderboard
+    {
+      let userName = '나';
+      try { if (sdk) { const u = sdk.auth.getUser(); if (u) userName = u.name; } } catch {}
+      saveToMosaicLeaderboard({
+        name: userName,
+        score: Math.round(this.aestheticScore * 100),
+        difficulty: this.difficulty,
+        timestamp: Date.now(),
+      });
+    }
 
     // Submit score to SDK
     if (sdk) {
@@ -1154,6 +1256,13 @@ class Game {
       this.galleryScroll = 0;
     }, '#3a506b');
     this.drawButton(ctx, galleryBtn);
+
+    // Leaderboard button
+    const lbY = galleryY + btnH + gap;
+    const lbBtn = this.addButton(btnX, lbY, btnW, btnH, '\u{1F3C6} 리더보드', () => {
+      showMosaicLeaderboard();
+    }, '#4a3f6b');
+    this.drawButton(ctx, lbBtn);
 
     // Login button (top-right)
     const loginBtn = this.addButton(this.width - 52, 8, 44, 36, sdkLoggedIn ? '\u{1F464}' : '\u{1F512}', () => {

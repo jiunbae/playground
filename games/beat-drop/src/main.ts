@@ -25,6 +25,113 @@ try {
   if (sdk) sdkLoggedIn = !!sdk.auth.getUser();
 } catch { /* ignore */ }
 
+// --- Leaderboard ---
+
+const LEADERBOARD_KEY = 'playground_beat-drop_leaderboard';
+const LEADERBOARD_MAX = 50;
+
+interface LeaderboardRecord {
+  name: string;
+  score: number;
+  grade: string;
+  song: string;
+  timestamp: number;
+}
+
+function loadBeatDropLeaderboard(): LeaderboardRecord[] {
+  try {
+    const data = localStorage.getItem(LEADERBOARD_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch { return []; }
+}
+
+function saveToBeatDropLeaderboard(entry: LeaderboardRecord): void {
+  const entries = loadBeatDropLeaderboard();
+  entries.push(entry);
+  entries.sort((a, b) => b.score - a.score);
+  if (entries.length > LEADERBOARD_MAX) entries.length = LEADERBOARD_MAX;
+  localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(entries));
+}
+
+let leaderboardOverlay: HTMLDivElement | null = null;
+
+function showBeatDropLeaderboard(): void {
+  if (leaderboardOverlay) return;
+
+  const songNames = SONGS.map(s => s.name);
+  let currentTab = 'all';
+
+  function renderOverlay() {
+    const all = loadBeatDropLeaderboard();
+    const filtered = currentTab === 'all' ? all : all.filter(e => e.song === currentTab);
+    const top10 = filtered.sort((a, b) => b.score - a.score).slice(0, 10);
+
+    let myName = '나';
+    try { if (sdk) { const u = sdk.auth.getUser(); if (u) myName = u.name; } } catch {}
+    const myIdx = filtered.findIndex(e => e.name === myName);
+
+    const tabsHtml = ['all', ...songNames].map(t => {
+      const label = t === 'all' ? '전체' : t;
+      const active = t === currentTab ? 'background:rgba(255,51,102,0.6);' : 'background:rgba(255,255,255,0.1);';
+      return `<button class="lb-tab" data-tab="${t}" style="padding:6px 12px;border:none;border-radius:6px;color:#fff;font-size:12px;cursor:pointer;${active}">${label}</button>`;
+    }).join('');
+
+    const rowsHtml = top10.length > 0
+      ? top10.map((e, i) => `
+        <tr style="${e.name === myName ? 'background:rgba(255,204,0,0.15);' : ''}">
+          <td style="padding:6px 8px;text-align:center;font-weight:bold;">${i + 1}</td>
+          <td style="padding:6px 8px;">${e.name}</td>
+          <td style="padding:6px 8px;text-align:center;">${e.score.toLocaleString()}</td>
+          <td style="padding:6px 8px;text-align:center;">${e.grade}</td>
+          <td style="padding:6px 8px;text-align:center;font-size:11px;">${e.song}</td>
+          <td style="padding:6px 8px;text-align:center;font-size:11px;color:#888;">${new Date(e.timestamp).toLocaleDateString('ko-KR')}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="6" style="padding:20px;text-align:center;color:#888;">아직 기록이 없습니다</td></tr>';
+
+    const myRankHtml = myIdx >= 0
+      ? `<div style="margin-top:12px;padding:8px;background:rgba(255,204,0,0.1);border-radius:8px;font-size:13px;"><strong>내 순위:</strong> ${myIdx + 1}위 | ${filtered[myIdx].score.toLocaleString()}점</div>`
+      : '';
+
+    leaderboardOverlay!.innerHTML = `
+      <div style="position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:1000;">
+        <div style="background:#1a1a2e;border:1px solid rgba(255,51,102,0.4);border-radius:16px;padding:24px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;color:#fff;font-family:'Segoe UI',sans-serif;">
+          <h2 style="margin:0 0 12px;text-align:center;">🏆 리더보드</h2>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">${tabsHtml}</div>
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead><tr style="border-bottom:2px solid rgba(255,255,255,0.2);">
+              <th style="padding:6px 8px;">순위</th><th style="padding:6px 8px;text-align:left;">이름</th>
+              <th style="padding:6px 8px;">점수</th><th style="padding:6px 8px;">등급</th>
+              <th style="padding:6px 8px;">곡</th><th style="padding:6px 8px;">날짜</th>
+            </tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+          ${myRankHtml}
+          <button id="lb-close" style="display:block;margin:16px auto 0;padding:10px 32px;border:none;border-radius:8px;background:#ff3366;color:#fff;font-size:16px;cursor:pointer;">닫기</button>
+        </div>
+      </div>`;
+
+    leaderboardOverlay!.querySelector('#lb-close')!.addEventListener('click', closeBeatDropLeaderboard);
+    leaderboardOverlay!.querySelectorAll('.lb-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentTab = (btn as HTMLElement).dataset.tab || 'all';
+        renderOverlay();
+      });
+    });
+  }
+
+  leaderboardOverlay = document.createElement('div');
+  leaderboardOverlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:1000;';
+  document.body.appendChild(leaderboardOverlay);
+  renderOverlay();
+}
+
+function closeBeatDropLeaderboard(): void {
+  if (leaderboardOverlay) {
+    leaderboardOverlay.remove();
+    leaderboardOverlay = null;
+  }
+}
+
 // --- Types ---
 
 type Difficulty = 'Easy' | 'Normal' | 'Hard';
@@ -545,6 +652,13 @@ function drawMenu() {
   ctx.fillStyle = '#333355';
   ctx.font = `12px 'Segoe UI', sans-serif`;
   ctx.fillText('v1.0 - 웹 오디오 리듬 게임', W / 2, H * 0.95);
+
+  // Leaderboard button
+  const lbBtn = makeButton(W / 2 - btnW / 2, H * 0.57, btnW, btnH, '\u{1F3C6} 리더보드', () => {
+    showBeatDropLeaderboard();
+  }, '#222244');
+  currentButtons.push(lbBtn);
+  drawButton(lbBtn);
 
   // Login button (top-right)
   const loginBtn = makeButton(W - 52, 8, 44, 36, sdkLoggedIn ? '\u{1F464}' : '\u{1F512}', () => {
@@ -1290,26 +1404,38 @@ function endGame() {
   else if (ratio >= 0.70) state.grade = 'B';
   else state.grade = 'C';
 
-  // Submit score to SDK
-  if (sdk && !sdkScoreSubmitted) {
+  // Save to local leaderboard & submit to SDK (once)
+  if (!sdkScoreSubmitted) {
     sdkScoreSubmitted = true;
     const song = SONGS[state.selectedSong];
-    try {
-      sdk.scores.submit({
-        score: state.score,
-        meta: {
-          song: song.name,
-          difficulty: state.difficulty,
-          grade: state.grade,
-          maxCombo: state.maxCombo,
-          accuracy: Math.round(ratio * 10000) / 100,
-          perfect: state.judgments.Perfect,
-          great: state.judgments.Great,
-          good: state.judgments.Good,
-          miss: state.judgments.Miss,
-        },
-      });
-    } catch { /* score submission failed */ }
+    let userName = '나';
+    try { if (sdk) { const u = sdk.auth.getUser(); if (u) userName = u.name; } } catch {}
+    saveToBeatDropLeaderboard({
+      name: userName,
+      score: state.score,
+      grade: state.grade,
+      song: song.name,
+      timestamp: Date.now(),
+    });
+
+    if (sdk) {
+      try {
+        sdk.scores.submit({
+          score: state.score,
+          meta: {
+            song: song.name,
+            difficulty: state.difficulty,
+            grade: state.grade,
+            maxCombo: state.maxCombo,
+            accuracy: Math.round(ratio * 10000) / 100,
+            perfect: state.judgments.Perfect,
+            great: state.judgments.Great,
+            good: state.judgments.Good,
+            miss: state.judgments.Miss,
+          },
+        });
+      } catch { /* score submission failed */ }
+    }
   }
 }
 

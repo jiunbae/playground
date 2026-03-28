@@ -1,6 +1,42 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, COLORS } from '../config/GameConfig';
 
+const LEADERBOARD_KEY = 'playground_one-hand-fortress_leaderboard';
+
+interface FortressLeaderboardEntry {
+  name: string;
+  highestStage: number;
+  remainingHP: number;
+  timestamp: number;
+}
+
+function loadLeaderboard(): FortressLeaderboardEntry[] {
+  try {
+    const raw = localStorage.getItem(LEADERBOARD_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveLeaderboardEntry(name: string, highestStage: number, remainingHP: number): void {
+  try {
+    const entries = loadLeaderboard();
+    const existing = entries.findIndex(e => e.name === name);
+    const entry: FortressLeaderboardEntry = { name, highestStage, remainingHP, timestamp: Date.now() };
+    if (existing >= 0) {
+      if (highestStage > entries[existing].highestStage ||
+          (highestStage === entries[existing].highestStage && remainingHP > entries[existing].remainingHP)) {
+        entries[existing] = entry;
+      }
+    } else {
+      entries.push(entry);
+    }
+    entries.sort((a, b) => b.highestStage - a.highestStage || b.remainingHP - a.remainingHP);
+    localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(entries.slice(0, 50)));
+  } catch { /* ignore */ }
+}
+
+export { saveLeaderboardEntry };
+
 export class TitleScene extends Phaser.Scene {
   constructor() {
     super('TitleScene');
@@ -81,8 +117,20 @@ export class TitleScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
 
+    // ==================== LEADERBOARD BUTTON ====================
+    const lbBtnY = btnY + 65;
+    const lbBg = this.add.rectangle(GAME_WIDTH / 2, lbBtnY, 200, 44, 0x5d4037, 0.7);
+    lbBg.setStrokeStyle(1, 0xffd93d, 0.6);
+    const lbText = this.add.text(GAME_WIDTH / 2, lbBtnY, '🏆 리더보드', {
+      fontSize: '15px', color: '#ffd93d', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    lbBg.setInteractive();
+    lbBg.on('pointerdown', () => {
+      this.showLeaderboard();
+    });
+
     // ==================== HOW TO PLAY BUTTON ====================
-    const helpBtnY = btnY + 65;
+    const helpBtnY = btnY + 65 + 55;
     const helpBg = this.add.rectangle(GAME_WIDTH / 2, helpBtnY, 200, 44, 0x5d4037, 0.7);
     helpBg.setStrokeStyle(1, 0x8d6e63, 0.6);
     const helpText = this.add.text(GAME_WIDTH / 2, helpBtnY, '❓ 게임 방법', {
@@ -100,7 +148,7 @@ export class TitleScene extends Phaser.Scene {
       if (sdk) {
         const user = sdk.auth.getUser();
         const loginLabel = user ? `👤 ${user.name}` : '🔑 로그인';
-        const loginBg = this.add.rectangle(GAME_WIDTH / 2, helpBtnY + 55, 200, 44, 0x5d4037, 0.7);
+        const loginBg = this.add.rectangle(GAME_WIDTH / 2, helpBtnY + 55, 200, 44, 0x3d2d22, 0.7);
         loginBg.setStrokeStyle(1, 0x8d6e63, 0.6);
         const loginText = this.add.text(GAME_WIDTH / 2, helpBtnY + 55, loginLabel, {
           fontSize: '15px', color: '#d7ccc8', fontStyle: 'bold',
@@ -124,6 +172,64 @@ export class TitleScene extends Phaser.Scene {
 
     // 페이드인
     this.cameras.main.fadeIn(800);
+  }
+
+  private showLeaderboard(): void {
+    const overlay = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0)
+      .setOrigin(0).setDepth(50).setInteractive();
+    this.tweens.add({ targets: overlay, fillAlpha: 0.7, duration: 300 });
+
+    const container = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2).setDepth(51);
+    container.setAlpha(0);
+    this.tweens.add({ targets: container, alpha: 1, duration: 300 });
+
+    const panelBg = this.add.rectangle(0, 0, 320, 400, 0x1a1a2e, 0.95);
+    panelBg.setStrokeStyle(2, 0xffd93d, 0.6);
+    container.add(panelBg);
+
+    const title = this.add.text(0, -170, '🏆 리더보드', {
+      fontSize: '20px', color: '#ffd93d', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    container.add(title);
+
+    // Header
+    const headerY = -130;
+    const hStyle = { fontSize: '11px', color: '#8d6e63' };
+    container.add(this.add.text(-140, headerY, '#', hStyle));
+    container.add(this.add.text(-110, headerY, '이름', hStyle));
+    container.add(this.add.text(40, headerY, '최고 스테이지', hStyle));
+    container.add(this.add.text(130, headerY, 'HP', hStyle));
+
+    const entries = loadLeaderboard().slice(0, 10);
+    entries.forEach((entry, i) => {
+      const y = headerY + 28 + i * 26;
+      const rankColor = i === 0 ? '#ffd93d' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#d7ccc8';
+      container.add(this.add.text(-140, y, `${i + 1}`, { fontSize: '14px', color: rankColor, fontStyle: 'bold' }));
+      container.add(this.add.text(-110, y, entry.name || '???', { fontSize: '13px', color: '#d7ccc8' }));
+      container.add(this.add.text(60, y, `${entry.highestStage}`, { fontSize: '14px', color: '#ffd93d' }).setOrigin(0.5, 0));
+      container.add(this.add.text(135, y, `${entry.remainingHP}`, { fontSize: '14px', color: '#4ade80' }).setOrigin(0.5, 0));
+    });
+
+    if (entries.length === 0) {
+      container.add(this.add.text(0, 0, '아직 기록이 없습니다', {
+        fontSize: '14px', color: '#8d6e63',
+      }).setOrigin(0.5));
+    }
+
+    const closeBg = this.add.rectangle(0, 165, 160, 40, 0x5d4037, 0.9);
+    closeBg.setStrokeStyle(1, 0x8d6e63);
+    const closeText = this.add.text(0, 165, '닫기', {
+      fontSize: '15px', color: '#ffffff',
+    }).setOrigin(0.5);
+    closeBg.setInteractive();
+    closeBg.on('pointerdown', () => {
+      this.tweens.add({
+        targets: [container, overlay],
+        alpha: 0, duration: 200,
+        onComplete: () => { container.destroy(); overlay.destroy(); },
+      });
+    });
+    container.add([closeBg, closeText]);
   }
 
   private showHowToPlay(): void {

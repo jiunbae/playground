@@ -158,8 +158,19 @@ function hasSavedData(): boolean {
   return localStorage.getItem('pocket_biome_save') !== null;
 }
 
-function saveGame() {
-  const data = {
+function showCloudToast(msg: string): void {
+  floatingNotifications.push({
+    text: msg,
+    x: canvas.width / 2,
+    y: 40,
+    alpha: 1,
+    timer: 2.5,
+    color: '#4ade80',
+  });
+}
+
+function getSaveData() {
+  return {
     creatures: creatures.map(c => ({ ...c })),
     plants: plants.map(p => ({ ...p })),
     camera,
@@ -171,8 +182,69 @@ function saveGame() {
     popHistory,
     nextPlantId,
     rngState,
+    updatedAt: Date.now(),
   };
+}
+
+function saveGame() {
+  const data = getSaveData();
   localStorage.setItem('pocket_biome_save', JSON.stringify(data));
+}
+
+async function cloudSaveGame(): Promise<void> {
+  if (!__sdk) return;
+  try {
+    saveGame(); // Always save locally first
+    const data = getSaveData();
+    await __sdk.saves.save(data);
+    showCloudToast('\u2601\uFE0F \uC800\uC7A5\uB428');
+  } catch { /* cloud save failed, continue offline */ }
+}
+
+async function cloudSyncOnLogin(): Promise<void> {
+  if (!__sdk) return;
+  try {
+    const cloudData = await __sdk.saves.load<{
+      creatures: any[]; gameTime: number; updatedAt: number;
+      plants: any[]; camera: any; simSpeed: number;
+      journal: any[]; discoveries: any[]; discoveryIds: string[];
+      popHistory: any[]; nextPlantId: number; rngState: number;
+    }>();
+    if (!cloudData) {
+      await cloudSaveGame();
+      return;
+    }
+
+    const localRaw = localStorage.getItem('pocket_biome_save');
+    let localUpdatedAt = 0;
+    if (localRaw) {
+      try { localUpdatedAt = JSON.parse(localRaw).updatedAt || 0; } catch { /* ignore */ }
+    }
+
+    if ((cloudData.updatedAt || 0) > localUpdatedAt) {
+      applyLoadedData(cloudData);
+      showCloudToast('\u2601\uFE0F \uD074\uB77C\uC6B0\uB4DC\uC5D0\uC11C \uBCF5\uC6D0\uB428');
+    } else {
+      await cloudSaveGame();
+    }
+  } catch { /* cloud sync failed */ }
+}
+
+function applyLoadedData(data: any): void {
+  terrain = new TerrainMap(0);
+  creatures = data.creatures || [];
+  plants = data.plants || [];
+  fences = [];
+  camera = data.camera || { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2, zoom: 1 };
+  simSpeed = data.simSpeed || 1;
+  gameTime = data.gameTime || 0;
+  journal = data.journal || [];
+  discoveries = data.discoveries || [];
+  discoverySet = new Set(data.discoveryIds || []);
+  popHistory = data.popHistory || [];
+  nextPlantId = data.nextPlantId || 1;
+  rngState = data.rngState || Date.now();
+  terrain = new TerrainMap(0);
 }
 
 function loadGame(): boolean {
@@ -180,21 +252,7 @@ function loadGame(): boolean {
   if (!raw) return false;
   try {
     const data = JSON.parse(raw);
-    terrain = new TerrainMap(0); // Will be overwritten by creature positions
-    creatures = data.creatures || [];
-    plants = data.plants || [];
-    fences = [];
-    camera = data.camera || { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2, zoom: 1 };
-    simSpeed = data.simSpeed || 1;
-    gameTime = data.gameTime || 0;
-    journal = data.journal || [];
-    discoveries = data.discoveries || [];
-    discoverySet = new Set(data.discoveryIds || []);
-    popHistory = data.popHistory || [];
-    nextPlantId = data.nextPlantId || 1;
-    rngState = data.rngState || Date.now();
-    // Rebuild terrain
-    terrain = new TerrainMap(0);
+    applyLoadedData(data);
     return true;
   } catch {
     return false;
@@ -293,6 +351,8 @@ function update(dt: number) {
   // Auto-save every 60 game-seconds
   if (Math.floor(gameTime / 60) > Math.floor((gameTime - scaledDt) / 60)) {
     saveGame();
+    // Cloud save at same interval
+    cloudSaveGame();
   }
 
   // Update plants (regrow)
@@ -1300,7 +1360,9 @@ canvas.addEventListener('mousedown', e => {
     const loginY = hasSavedData() ? H * 0.5 + 130 : H * 0.5 + 65;
     if (e.clientY > loginY - 5 && e.clientY < loginY + 55) {
       try {
-        __sdk?.auth.loginIfAvailable().catch(() => {});
+        __sdk?.auth.loginIfAvailable().then(() => {
+          cloudSyncOnLogin();
+        }).catch(() => {});
       } catch (_) {}
     }
     return;

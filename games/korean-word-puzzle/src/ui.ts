@@ -7,7 +7,7 @@ import { Game } from './game';
 import { JamoStatus, type GuessFeedback, type SyllableFeedback } from './engine';
 import { decompose, isHangul, CHOSEONG, JUNGSEONG } from './jamo';
 import { WORD_LENGTH } from './words';
-import { loadStats } from './stats';
+import { loadStats, initCloudSave, cloudSaveStats, cloudSyncOnLogin } from './stats';
 import type { GameStats } from './stats';
 import { PlaygroundSDK } from '@playground/sdk';
 
@@ -17,7 +17,41 @@ try {
   sdk = PlaygroundSDK.init({ apiUrl: 'https://api.jiun.dev', game: 'korean-word-puzzle' });
 } catch { /* SDK init failed, continue offline */ }
 
+// Init cloud save module
+initCloudSave(sdk);
+
+// Sync on load if already logged in
+try {
+  if (sdk?.auth.getUser()) {
+    cloudSyncOnLogin();
+  }
+} catch { /* ignore */ }
+
 const MAX_GUESSES = 6;
+const LEADERBOARD_KEY = 'playground_korean-word-puzzle_leaderboard';
+const LEADERBOARD_MAX = 50;
+
+interface LeaderboardRecord {
+  name: string;
+  avgGuesses: number;
+  streak: number;
+  timestamp: number;
+}
+
+function loadLeaderboard(): LeaderboardRecord[] {
+  try {
+    const data = localStorage.getItem(LEADERBOARD_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch { return []; }
+}
+
+function saveToLeaderboard(entry: LeaderboardRecord): void {
+  const entries = loadLeaderboard();
+  entries.push(entry);
+  entries.sort((a, b) => a.avgGuesses - b.avgGuesses);
+  if (entries.length > LEADERBOARD_MAX) entries.length = LEADERBOARD_MAX;
+  localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(entries));
+}
 
 // Korean keyboard layout
 const KEYBOARD_ROWS = [
@@ -54,6 +88,8 @@ export class UI {
     if (this.game.state.gameOver && !this.scoreSubmitted) {
       this.scoreSubmitted = true;
       this.submitScore();
+      // Cloud save stats on game end
+      cloudSaveStats();
     }
     this.render();
   }
@@ -81,6 +117,7 @@ export class UI {
       <button class="header-btn" id="btn-help" aria-label="도움말">?</button>
       <h1 class="title">한끝차이</h1>
       <div class="header-right">
+        <button class="header-btn" id="btn-leaderboard" aria-label="리더보드" style="font-size:16px;">🏆</button>
         <button class="header-btn" id="btn-login" aria-label="로그인" style="font-size:16px;opacity:0.6;">🔒</button>
         <button class="header-btn" id="btn-stats" aria-label="통계">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -118,6 +155,7 @@ export class UI {
 
     // Event listeners
     document.getElementById('btn-help')!.addEventListener('click', () => this.showHelp());
+    document.getElementById('btn-leaderboard')!.addEventListener('click', () => this.showLeaderboard());
     document.getElementById('btn-stats')!.addEventListener('click', () => this.showStats());
     document.getElementById('btn-login')!.addEventListener('click', () => this.handleLogin());
 
@@ -301,13 +339,30 @@ export class UI {
         loginBtn.textContent = user ? '\u{1F464}' : '\u{1F512}';
         loginBtn.style.opacity = user ? '1' : '0.6';
       }
+      if (user) {
+        await cloudSyncOnLogin();
+      }
     } catch { /* login failed, continue offline */ }
   }
 
   private async submitScore(): Promise<void> {
-    if (!sdk) return;
     const { puzzleNumber, guesses, won } = this.game.state;
     const stats = this.game.getStats();
+
+    // Save to local leaderboard
+    if (won && stats.gamesWon > 0) {
+      const avgGuesses = Math.round((stats.guessDistribution.reduce((sum, count, i) => sum + count * (i + 1), 0) / stats.gamesWon) * 100) / 100;
+      let userName = '나';
+      try { if (sdk) { const u = sdk.auth.getUser(); if (u) userName = u.name; } } catch {}
+      saveToLeaderboard({
+        name: userName,
+        avgGuesses,
+        streak: stats.currentStreak,
+        timestamp: Date.now(),
+      });
+    }
+
+    if (!sdk) return;
     try {
       await sdk.scores.submit({
         score: guesses.length,
@@ -446,6 +501,53 @@ export class UI {
     } else {
       this.messageEl.classList.remove('show');
     }
+  }
+
+  private showLeaderboard(): void {
+    const entries = loadLeaderboard().sort((a, b) => a.avgGuesses - b.avgGuesses).slice(0, 10);
+    let myName = '나';
+    try { if (sdk) { const u = sdk.auth.getUser(); if (u) myName = u.name; } } catch {}
+
+    const rowsHtml = entries.length > 0
+      ? entries.map((e, i) => `
+        <tr${e.name === myName ? ' style="background:rgba(255,204,0,0.15);"' : ''}>
+          <td style="padding:6px 8px;text-align:center;font-weight:bold;">${i + 1}</td>
+          <td style="padding:6px 8px;">${e.name}</td>
+          <td style="padding:6px 8px;text-align:center;">${e.avgGuesses.toFixed(2)}</td>
+          <td style="padding:6px 8px;text-align:center;">${e.streak}</td>
+          <td style="padding:6px 8px;text-align:center;font-size:12px;color:#888;">${new Date(e.timestamp).toLocaleDateString('ko-KR')}</td>
+        </tr>
+      `).join('')
+      : '<tr><td colspan="5" style="padding:20px;text-align:center;color:#888;">아직 기록이 없습니다</td></tr>';
+
+    // Find my rank
+    const all = loadLeaderboard().sort((a, b) => a.avgGuesses - b.avgGuesses);
+    const myIndex = all.findIndex(e => e.name === myName);
+    const myRankHtml = myIndex >= 0
+      ? `<div style="margin-top:16px;padding:10px;background:rgba(255,204,0,0.1);border-radius:8px;">
+          <strong>내 순위:</strong> ${myIndex + 1}위 | 평균 ${all[myIndex].avgGuesses.toFixed(2)}회 | 연승 ${all[myIndex].streak}
+        </div>`
+      : '';
+
+    this.showModal(`
+      <div class="modal-content" style="max-height:80vh;overflow-y:auto;">
+        <h2 style="margin-bottom:12px;">🏆 리더보드</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:14px;">
+          <thead>
+            <tr style="border-bottom:2px solid rgba(255,255,255,0.2);">
+              <th style="padding:6px 8px;text-align:center;">순위</th>
+              <th style="padding:6px 8px;text-align:left;">이름</th>
+              <th style="padding:6px 8px;text-align:center;">평균 추측</th>
+              <th style="padding:6px 8px;text-align:center;">연승</th>
+              <th style="padding:6px 8px;text-align:center;">날짜</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        ${myRankHtml}
+        <button class="modal-close-btn" onclick="this.closest('.modal-overlay').classList.add('hidden')">닫기</button>
+      </div>
+    `);
   }
 
   private showHelp(): void {

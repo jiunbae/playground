@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, GAME_WIDTH, GAME_HEIGHT } from '../utils/constants';
 import { UIHelper } from '../ui/UIHelper';
 import { gameState } from '../systems/GameState';
+import { saveToRDLeaderboard } from './MainMenuScene';
 
 export class RunResultScene extends Phaser.Scene {
   private victory = false;
@@ -87,6 +88,19 @@ export class RunResultScene extends Phaser.Scene {
       this.add.text(GAME_WIDTH / 2, yPos, `최종 점수: ${score}`, {
         fontSize: '28px', fontFamily: 'sans-serif', color: COLORS.ACCENT_HEX, fontStyle: 'bold',
       }).setOrigin(0.5);
+    }
+
+    // Save to local leaderboard
+    if (run) {
+      let userName = '나';
+      try { const sdk = (window as any).__sdk; if (sdk) { const u = sdk.auth.getUser(); if (u) userName = u.name; } } catch {}
+      saveToRDLeaderboard({
+        name: userName,
+        score,
+        character: run.character.id,
+        floorsCleared: run.currentFloor,
+        timestamp: Date.now(),
+      });
     }
 
     // Submit score to SDK

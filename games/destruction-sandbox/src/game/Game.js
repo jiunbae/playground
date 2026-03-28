@@ -4,7 +4,7 @@ import { Renderer } from '../engine/Renderer.js';
 import { Input } from '../engine/Input.js';
 import { Audio } from '../engine/Audio.js';
 import { ParticleSystem } from '../engine/Particles.js';
-import { UI } from '../ui/UI.js';
+import { UI, saveToDSLeaderboard } from '../ui/UI.js';
 import { Block, createBlock } from './Block.js';
 import { ChainReactionSystem } from './ChainReaction.js';
 import { ToolManager, TOOLS } from './Tools.js';
@@ -27,6 +27,7 @@ export class Game {
     this.scoring = new ScoringSystem();
     this.chainSystem = new ChainReactionSystem(this);
     this.save = new SaveSystem();
+    window.__saveSystem = this.save;
 
     this.state = 'loading'; // loading, menu, stageSelect, playing, paused, results, sandbox
     this.blocks = [];
@@ -601,6 +602,19 @@ export class Game {
     this.destructionSettled = true;
 
     const result = this.scoring.calculateScore();
+
+    // Save to local leaderboard
+    {
+      let userName = '나';
+      try { const u = window.__sdk?.auth.getUser(); if (u) userName = u.name; } catch {}
+      saveToDSLeaderboard({
+        name: userName,
+        totalScore: result.score,
+        stars: result.stars || 0,
+        stagesCleared: this.currentLevelId || 0,
+        timestamp: Date.now(),
+      });
+    }
 
     // Submit score to SDK
     try {

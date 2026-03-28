@@ -1,6 +1,30 @@
 import Phaser from 'phaser';
 import { StageManager } from '../systems/StageManager.js';
 
+const LEADERBOARD_KEY = 'playground_draw-alive_leaderboard';
+
+function loadLeaderboard() {
+  try {
+    const raw = localStorage.getItem(LEADERBOARD_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveLeaderboardEntry(name, totalStars, stagesCleared) {
+  try {
+    const entries = loadLeaderboard();
+    const existing = entries.findIndex(e => e.name === name);
+    const entry = { name, totalStars, stagesCleared, timestamp: Date.now() };
+    if (existing >= 0) {
+      if (totalStars >= entries[existing].totalStars) entries[existing] = entry;
+    } else {
+      entries.push(entry);
+    }
+    entries.sort((a, b) => b.totalStars - a.totalStars || b.stagesCleared - a.stagesCleared);
+    localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(entries.slice(0, 50)));
+  } catch { /* ignore */ }
+}
+
 export class MainMenuScene extends Phaser.Scene {
   constructor() {
     super({ key: 'MainMenuScene' });
@@ -13,6 +37,16 @@ export class MainMenuScene extends Phaser.Scene {
 
     const stageManager = new StageManager();
     const totalStars = stageManager.getTotalStars();
+    const stagesCleared = Math.max(0, stageManager.getMaxUnlockedStage() - 1);
+
+    // Auto-save current player to leaderboard
+    try {
+      const sdk = window.__sdk;
+      const user = sdk?.auth?.getUser();
+      if (user) {
+        saveLeaderboardEntry(user.name, totalStars, stagesCleared);
+      }
+    } catch { /* ignore */ }
 
     // Title
     this.add.text(width / 2, height * 0.15, 'Draw Alive', {
@@ -54,6 +88,12 @@ export class MainMenuScene extends Phaser.Scene {
       const y = startY + i * (btnHeight + btnGap);
       this._createButton(width / 2, y, width - 80, btnHeight, cfg);
     });
+
+    // Leaderboard button
+    const lbBtn = this.add.text(width - 40, 30, '🏆', {
+      fontSize: '28px',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    lbBtn.on('pointerdown', () => this._showLeaderboard(width, height));
 
     // Login button
     try {
@@ -99,6 +139,75 @@ export class MainMenuScene extends Phaser.Scene {
       this.cameras.main.fadeOut(200);
       this.time.delayedCall(200, () => this.scene.start(cfg.scene));
     });
+  }
+
+  _showLeaderboard(width, height) {
+    const overlay = this.add.rectangle(0, 0, width, height, 0x000000, 0)
+      .setOrigin(0).setDepth(50).setInteractive();
+    this.tweens.add({ targets: overlay, fillAlpha: 0.7, duration: 200 });
+
+    const container = this.add.container(width / 2, height / 2).setDepth(51);
+    container.setAlpha(0);
+    this.tweens.add({ targets: container, alpha: 1, duration: 200 });
+
+    const panelBg = this.add.rectangle(0, 0, width - 40, height * 0.7, 0x222222, 0.95);
+    panelBg.setStrokeStyle(2, 0xFFC312, 0.8);
+    container.add(panelBg);
+
+    const title = this.add.text(0, -panelBg.height / 2 + 30, '🏆 리더보드', {
+      fontSize: '22px', fontFamily: 'sans-serif', fontStyle: 'bold', color: '#FFC312',
+    }).setOrigin(0.5);
+    container.add(title);
+
+    // Header row
+    const headerY = -panelBg.height / 2 + 65;
+    const colX = [-panelBg.width / 2 + 30, -panelBg.width / 2 + 70, 0, panelBg.width / 2 - 80, panelBg.width / 2 - 30];
+    const headers = ['#', '이름', '총 별', '클리어'];
+    const headerPositions = [colX[0], colX[1], colX[3], colX[4]];
+    headers.forEach((h, i) => {
+      container.add(this.add.text(headerPositions[i], headerY, h, {
+        fontSize: '12px', fontFamily: 'sans-serif', fontStyle: 'bold', color: '#999',
+      }).setOrigin(0, 0.5));
+    });
+
+    const entries = loadLeaderboard().slice(0, 10);
+    entries.forEach((entry, i) => {
+      const y = headerY + 30 + i * 28;
+      const rankColor = i === 0 ? '#FFC312' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : '#FFFFFF';
+      container.add(this.add.text(colX[0], y, `${i + 1}`, {
+        fontSize: '14px', fontFamily: 'sans-serif', fontStyle: 'bold', color: rankColor,
+      }).setOrigin(0, 0.5));
+      container.add(this.add.text(colX[1], y, entry.name || '???', {
+        fontSize: '14px', fontFamily: 'sans-serif', color: '#FFF',
+      }).setOrigin(0, 0.5));
+      container.add(this.add.text(colX[3], y, `★${entry.totalStars}`, {
+        fontSize: '14px', fontFamily: 'sans-serif', color: '#FFC312',
+      }).setOrigin(0, 0.5));
+      container.add(this.add.text(colX[4], y, `${entry.stagesCleared}`, {
+        fontSize: '14px', fontFamily: 'sans-serif', color: '#AAA',
+      }).setOrigin(0, 0.5));
+    });
+
+    if (entries.length === 0) {
+      container.add(this.add.text(0, 0, '아직 기록이 없습니다', {
+        fontSize: '14px', fontFamily: 'sans-serif', color: '#999',
+      }).setOrigin(0.5));
+    }
+
+    const closeBg = this.add.rectangle(0, panelBg.height / 2 - 35, 120, 36, 0xFF6B6B, 0.9);
+    closeBg.setStrokeStyle(1, 0xFFFFFF, 0.3);
+    const closeText = this.add.text(0, panelBg.height / 2 - 35, '닫기', {
+      fontSize: '15px', fontFamily: 'sans-serif', color: '#FFF',
+    }).setOrigin(0.5);
+    closeBg.setInteractive({ useHandCursor: true });
+    closeBg.on('pointerdown', () => {
+      this.tweens.add({
+        targets: [container, overlay],
+        alpha: 0, duration: 150,
+        onComplete: () => { container.destroy(); overlay.destroy(); },
+      });
+    });
+    container.add([closeBg, closeText]);
   }
 
   _drawDoodle(width, height) {

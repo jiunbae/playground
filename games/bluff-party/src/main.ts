@@ -27,6 +27,79 @@ async function handleSdkLogin(): Promise<void> {
   } catch { /* login failed */ }
 }
 
+// --- Leaderboard ---
+const BLUFF_LEADERBOARD_KEY = 'playground_bluff-party_leaderboard';
+
+interface BluffLeaderboardEntry {
+  name: string;
+  totalWins: number;
+  gamesPlayed: number;
+  winRate: number;
+  timestamp: number;
+}
+
+function loadBluffLeaderboard(): BluffLeaderboardEntry[] {
+  try {
+    const raw = localStorage.getItem(BLUFF_LEADERBOARD_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveBluffLeaderboardEntry(name: string, won: boolean): void {
+  try {
+    const entries = loadBluffLeaderboard();
+    let existing = entries.find(e => e.name === name);
+    if (!existing) {
+      existing = { name, totalWins: 0, gamesPlayed: 0, winRate: 0, timestamp: Date.now() };
+      entries.push(existing);
+    }
+    existing.gamesPlayed++;
+    if (won) existing.totalWins++;
+    existing.winRate = Math.round((existing.totalWins / existing.gamesPlayed) * 100);
+    existing.timestamp = Date.now();
+    entries.sort((a, b) => b.totalWins - a.totalWins || b.winRate - a.winRate);
+    localStorage.setItem(BLUFF_LEADERBOARD_KEY, JSON.stringify(entries.slice(0, 50)));
+  } catch { /* ignore */ }
+}
+
+function renderBluffLeaderboard(): void {
+  const entries = loadBluffLeaderboard().slice(0, 10);
+  const medals = ['\u{1F947}', '\u{1F948}', '\u{1F949}'];
+
+  app.innerHTML = `
+    <div class="title-bg" style="display:flex;flex-direction:column;align-items:center;height:100%;padding:20px;width:100%;overflow-y:auto;">
+      <h2 style="font-size:28px;font-weight:900;color:${COLORS.yellow};margin:20px 0 5px;">\u{1F3C6} \uB9AC\uB354\uBCF4\uB4DC</h2>
+      <p style="font-size:13px;color:${COLORS.gray};margin-bottom:20px;">\uBE14\uB7EC\uD504 \uD30C\uD2F0 \uCC54\uD53C\uC5B8</p>
+
+      <div style="width:100%;max-width:380px;">
+        <div style="display:flex;padding:8px 16px;color:${COLORS.gray};font-size:12px;font-weight:700;">
+          <span style="width:30px;">#</span>
+          <span style="flex:1;">\uC774\uB984</span>
+          <span style="width:60px;text-align:center;">\uC2B9\uB9AC</span>
+          <span style="width:60px;text-align:right;">\uC2B9\uB960</span>
+        </div>
+        ${entries.length === 0 ? `<p style="text-align:center;color:${COLORS.gray};padding:40px 0;">\uC544\uC9C1 \uAE30\uB85D\uC774 \uC5C6\uC2B5\uB2C8\uB2E4</p>` :
+          entries.map((e, i) => `
+            <div style="display:flex;align-items:center;padding:12px 16px;background:rgba(255,255,255,0.05);border-radius:12px;margin-bottom:6px;">
+              <span style="width:30px;font-size:${i < 3 ? '18' : '14'}px;font-weight:700;color:${i === 0 ? COLORS.yellow : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : COLORS.white};">${i < 3 ? medals[i] : i + 1}</span>
+              <span style="flex:1;font-weight:700;color:${COLORS.white};">${e.name}</span>
+              <span style="width:60px;text-align:center;font-weight:700;color:${COLORS.yellow};">${e.totalWins}</span>
+              <span style="width:60px;text-align:right;font-size:13px;color:${COLORS.gray};">${e.winRate}%</span>
+            </div>
+          `).join('')}
+      </div>
+
+      <button id="btn-lb-back" style="background:${COLORS.secondary};color:white;border:none;padding:14px 40px;border-radius:50px;font-size:16px;font-weight:700;cursor:pointer;margin-top:20px;">
+        \uB3CC\uC544\uAC00\uAE30
+      </button>
+    </div>
+  `;
+  document.getElementById('btn-lb-back')!.addEventListener('click', () => {
+    currentPhase = 'title';
+    render();
+  });
+}
+
 // --- Types ---
 
 interface Player {
@@ -475,7 +548,10 @@ function render(): void {
 function renderTitle(): void {
   app.innerHTML = `
     <div class="title-bg" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:20px;text-align:center;width:100%;position:relative;">
-      <button id="btn-sdk-login" style="position:absolute;top:12px;right:12px;background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:36px;height:36px;font-size:16px;cursor:pointer;opacity:0.6;">${sdkLoggedIn ? '\u{1F464}' : '\u{1F512}'}</button>
+      <div style="position:absolute;top:12px;right:12px;display:flex;gap:8px;">
+        <button id="btn-leaderboard" style="background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:36px;height:36px;font-size:16px;cursor:pointer;opacity:0.8;">\u{1F3C6}</button>
+        <button id="btn-sdk-login" style="background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:36px;height:36px;font-size:16px;cursor:pointer;opacity:0.6;">${sdkLoggedIn ? '\u{1F464}' : '\u{1F512}'}</button>
+      </div>
       <div class="mask-emoji" style="margin-bottom:10px;">\uD83C\uDFAD</div>
       <h1 style="font-size:42px;font-weight:900;background:linear-gradient(to right,${COLORS.primary},${COLORS.yellow});-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;">BLUFF PARTY</h1>
       <p style="font-size:18px;color:${COLORS.yellow};margin-bottom:30px;font-weight:700;">블러프 파티</p>
@@ -507,6 +583,9 @@ function renderTitle(): void {
     </div>
   `;
   document.getElementById('btn-sdk-login')!.addEventListener('click', () => handleSdkLogin());
+  document.getElementById('btn-leaderboard')!.addEventListener('click', () => {
+    renderBluffLeaderboard();
+  });
   document.getElementById('btn-start')!.addEventListener('click', () => {
     currentPhase = 'setup';
     render();
@@ -1216,6 +1295,11 @@ function renderFinalResults(): void {
   // Stats
   const totalCaught = roundHistory.filter(r => r.caught).length;
   const totalBlufferWin = roundHistory.filter(r => !r.caught).length;
+
+  // Save leaderboard entries for all players
+  sorted.forEach((p, rank) => {
+    saveBluffLeaderboardEntry(p.name, rank === 0);
+  });
 
   // Submit score to SDK
   if (sdk) {

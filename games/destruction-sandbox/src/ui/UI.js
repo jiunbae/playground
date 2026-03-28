@@ -1,6 +1,79 @@
 import { TOOLS } from '../game/Tools.js';
 import { CHAPTERS, LEVELS, getChapterLevels, SANDBOX_STRUCTURES } from '../game/Levels.js';
 
+// --- Leaderboard ---
+const DS_LEADERBOARD_KEY = 'playground_destruction-sandbox_leaderboard';
+const DS_LEADERBOARD_MAX = 50;
+
+function loadDSLeaderboard() {
+  try {
+    const data = localStorage.getItem(DS_LEADERBOARD_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch { return []; }
+}
+
+function saveToDSLeaderboard(entry) {
+  const entries = loadDSLeaderboard();
+  entries.push(entry);
+  entries.sort((a, b) => b.totalScore - a.totalScore);
+  if (entries.length > DS_LEADERBOARD_MAX) entries.length = DS_LEADERBOARD_MAX;
+  localStorage.setItem(DS_LEADERBOARD_KEY, JSON.stringify(entries));
+}
+
+function showDSLeaderboard() {
+  if (document.getElementById('ds-leaderboard-overlay')) return;
+
+  const all = loadDSLeaderboard();
+  const top10 = all.sort((a, b) => b.totalScore - a.totalScore).slice(0, 10);
+
+  let myName = '나';
+  try {
+    const sdk = window.__sdk;
+    if (sdk) { const u = sdk.auth.getUser(); if (u) myName = u.name; }
+  } catch {}
+  const myIdx = all.findIndex(e => e.name === myName);
+
+  const rowsHtml = top10.length > 0
+    ? top10.map((e, i) => `
+      <tr style="${e.name === myName ? 'background:rgba(255,204,0,0.15);' : ''}">
+        <td style="padding:6px 8px;text-align:center;font-weight:bold;">${i + 1}</td>
+        <td style="padding:6px 8px;">${e.name}</td>
+        <td style="padding:6px 8px;text-align:center;">${e.totalScore.toLocaleString()}</td>
+        <td style="padding:6px 8px;text-align:center;">${'⭐'.repeat(Math.min(e.stars || 0, 5))}</td>
+        <td style="padding:6px 8px;text-align:center;">${e.stagesCleared || 0}</td>
+        <td style="padding:6px 8px;text-align:center;font-size:11px;color:rgba(255,255,255,0.5);">${new Date(e.timestamp).toLocaleDateString('ko-KR')}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="6" style="padding:20px;text-align:center;color:rgba(255,255,255,0.5);">아직 기록이 없습니다</td></tr>';
+
+  const myRankHtml = myIdx >= 0
+    ? `<div style="margin-top:12px;padding:8px;background:rgba(255,204,0,0.1);border-radius:8px;font-size:13px;"><strong>내 순위:</strong> ${myIdx + 1}위 | ${all[myIdx].totalScore.toLocaleString()}점</div>`
+    : '';
+
+  const overlay = document.createElement('div');
+  overlay.id = 'ds-leaderboard-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:2000;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <div style="background:linear-gradient(180deg,#0a0e27,#1a2380);border:1px solid rgba(255,64,129,0.4);border-radius:16px;padding:24px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;color:#fff;font-family:'Black Han Sans',sans-serif;">
+      <h2 style="margin:0 0 12px;text-align:center;font-size:24px;">🏆 리더보드</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;font-family:sans-serif;">
+        <thead><tr style="border-bottom:2px solid rgba(255,255,255,0.2);">
+          <th style="padding:6px 8px;">순위</th><th style="padding:6px 8px;text-align:left;">이름</th>
+          <th style="padding:6px 8px;">총점</th><th style="padding:6px 8px;">별</th>
+          <th style="padding:6px 8px;">클리어</th><th style="padding:6px 8px;">날짜</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      ${myRankHtml}
+      <button id="ds-lb-close" style="display:block;margin:16px auto 0;padding:10px 32px;border:none;border-radius:8px;background:linear-gradient(135deg,#FF4081,#FF1744);color:#fff;font-size:16px;cursor:pointer;font-family:'Black Han Sans',sans-serif;">닫기</button>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  document.getElementById('ds-lb-close').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+}
+
+export { saveToDSLeaderboard };
+
 export class UI {
   constructor(container) {
     this.container = container;
@@ -78,6 +151,17 @@ export class UI {
           <span style="font-size:12px; opacity:0.8; margin-top:4px; font-family:sans-serif; font-weight:normal;">건물을 직접 만들고 부수세요</span>
         </button>
 
+        <button id="btn-leaderboard" class="menu-btn" style="
+          width:280px; padding:16px 16px 12px; margin:6px; border:none; border-radius:14px;
+          font-family:'Black Han Sans',sans-serif; font-size:20px;
+          background: linear-gradient(135deg, #FFD600, #FF9100); color:#fff;
+          box-shadow: 0 4px 20px rgba(255,214,0,0.4);
+          cursor:pointer; transition: transform 0.15s;
+          display:flex; flex-direction:column; align-items:center;
+        ">
+          <span>🏆 리더보드</span>
+        </button>
+
         <button id="btn-login" class="menu-btn" style="
           width:280px; padding:12px 16px; margin:20px 6px 6px; border:none; border-radius:14px;
           font-family:'Black Han Sans',sans-serif; font-size:16px;
@@ -101,6 +185,7 @@ export class UI {
     document.getElementById('btn-campaign').addEventListener('click', () => this._emit('campaign'));
     document.getElementById('btn-sandbox').addEventListener('click', () => this._emit('sandbox'));
     document.getElementById('btn-sandbox-build').addEventListener('click', () => this._emit('sandboxBuild'));
+    document.getElementById('btn-leaderboard').addEventListener('click', () => showDSLeaderboard());
 
     // SDK login button
     try {
@@ -113,7 +198,13 @@ export class UI {
           loginBtn.addEventListener('click', async () => {
             try {
               const loggedIn = await sdk.auth.loginIfAvailable();
-              if (loggedIn) loginBtn.textContent = `👤 ${loggedIn.name}`;
+              if (loggedIn) {
+                loginBtn.textContent = `👤 ${loggedIn.name}`;
+                // Trigger cloud sync if save system is available
+                if (window.__saveSystem?.cloudSync) {
+                  window.__saveSystem.cloudSync();
+                }
+              }
             } catch (_) {}
           });
         }
