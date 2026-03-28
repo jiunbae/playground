@@ -40,6 +40,7 @@ jobs:
           cp portal/index.html deploy/games/index.html 2>/dev/null || true
 
       - name: Deploy to blog repo
+        if: ${{ secrets.DEPLOY_TOKEN != '' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           personal_token: ${{ secrets.DEPLOY_TOKEN }}
@@ -49,3 +50,7 @@ jobs:
           destination_dir: public/games
           keep_files: false
           commit_message: 'deploy: Update playground games from ${{ github.sha }}'
+
+      - name: Deploy skipped (no token)
+        if: ${{ secrets.DEPLOY_TOKEN == '' }}
+        run: echo "⚠️ DEPLOY_TOKEN not set — skipping deploy. Build artifacts are in deploy/games/"
