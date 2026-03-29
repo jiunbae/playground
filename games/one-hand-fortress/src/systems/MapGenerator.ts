@@ -27,8 +27,12 @@ class SeededRandom {
 }
 
 export class MapGenerator {
-  generate(stage: number, cols: number, rows: number): MapData {
-    const rng = new SeededRandom(stage * 7919 + 31);
+  /**
+   * Generate a map. If `seed` is provided, use it directly for RNG;
+   * otherwise derive from stage number (legacy behavior).
+   */
+  generate(stage: number, cols: number, rows: number, seed?: number): MapData {
+    const rng = new SeededRandom(seed != null ? seed : stage * 7919 + 31);
     const grid: CellType[][] = [];
 
     // 모두 배치 가능으로 초기화

@@ -147,3 +147,27 @@ export const STAGE_CONFIG = {
   villageHealth: 20,
   waveIntervalMs: 3000, // 물결 간 대기
 };
+
+// ==================== 주간 챌린지 ====================
+export function getWeeklySeed(): number {
+  const now = new Date();
+  const year = now.getFullYear();
+  const startOfYear = new Date(year, 0, 1).getTime();
+  const week = Math.floor((now.getTime() - startOfYear) / (7 * 24 * 60 * 60 * 1000));
+  return year * 100 + week; // e.g., 202613
+}
+
+export function getWeekLabel(): string {
+  const seed = getWeeklySeed();
+  const week = seed % 100;
+  return `${Math.floor(seed / 100)}년 ${week}주차`;
+}
+
+// 주간 챌린지 색상
+export const WEEKLY_COLORS = {
+  ACCENT: 0xffb300,       // 앰버/골드
+  ACCENT_HEX: '#ffb300',
+  BORDER: 0xffd54f,
+  TEXT: '#ffe082',
+  BANNER_BG: 0x4e342e,
+};

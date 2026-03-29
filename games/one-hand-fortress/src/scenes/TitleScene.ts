@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, COLORS } from '../config/GameConfig';
+import { GAME_WIDTH, GAME_HEIGHT, COLORS, WEEKLY_COLORS, getWeeklySeed, getWeekLabel } from '../config/GameConfig';
 
 const LEADERBOARD_KEY = 'playground_one-hand-fortress_leaderboard';
 
@@ -117,8 +117,48 @@ export class TitleScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
 
+    // ==================== WEEKLY CHALLENGE BUTTON ====================
+    const weeklyBtnY = btnY + 60;
+    const weeklyBg = this.add.rectangle(GAME_WIDTH / 2, weeklyBtnY, 200, 44, WEEKLY_COLORS.BANNER_BG, 0.9);
+    weeklyBg.setStrokeStyle(2, WEEKLY_COLORS.BORDER, 0.8);
+    const weeklyLabel = this.add.text(GAME_WIDTH / 2, weeklyBtnY - 6, '\u2694\uFE0F \uC8FC\uAC04 \uCC4C\uB9B0\uC9C0', {
+      fontSize: '15px', color: WEEKLY_COLORS.ACCENT_HEX, fontStyle: 'bold',
+    }).setOrigin(0.5);
+    const weeklySubLabel = this.add.text(GAME_WIDTH / 2, weeklyBtnY + 12, `${getWeekLabel()} \uCC4C\uB9B0\uC9C0`, {
+      fontSize: '10px', color: WEEKLY_COLORS.TEXT,
+    }).setOrigin(0.5);
+
+    // Show weekly best if exists
+    try {
+      const weeklyBest = localStorage.getItem(`ohf_weekly_${getWeeklySeed()}`);
+      if (weeklyBest) {
+        const parsed = JSON.parse(weeklyBest);
+        this.add.text(GAME_WIDTH / 2, weeklyBtnY + 28, `\uCD5C\uACE0: ${parsed.score}\uC810`, {
+          fontSize: '9px', color: '#ffd54f',
+        }).setOrigin(0.5);
+      }
+    } catch (_) {}
+
+    weeklyBg.setInteractive();
+    weeklyBg.on('pointerdown', () => {
+      this.cameras.main.fadeOut(500);
+      this.time.delayedCall(500, () => {
+        this.scene.start('GameScene', { mode: 'weekly', seed: getWeeklySeed() });
+      });
+    });
+
+    // Subtle glow animation on weekly button
+    this.tweens.add({
+      targets: weeklyBg,
+      strokeAlpha: 0.3,
+      duration: 1500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
     // ==================== LEADERBOARD BUTTON ====================
-    const lbBtnY = btnY + 65;
+    const lbBtnY = weeklyBtnY + 55;
     const lbBg = this.add.rectangle(GAME_WIDTH / 2, lbBtnY, 200, 44, 0x5d4037, 0.7);
     lbBg.setStrokeStyle(1, 0xffd93d, 0.6);
     const lbText = this.add.text(GAME_WIDTH / 2, lbBtnY, '🏆 리더보드', {
@@ -130,7 +170,7 @@ export class TitleScene extends Phaser.Scene {
     });
 
     // ==================== HOW TO PLAY BUTTON ====================
-    const helpBtnY = btnY + 65 + 55;
+    const helpBtnY = lbBtnY + 55;
     const helpBg = this.add.rectangle(GAME_WIDTH / 2, helpBtnY, 200, 44, 0x5d4037, 0.7);
     helpBg.setStrokeStyle(1, 0x8d6e63, 0.6);
     const helpText = this.add.text(GAME_WIDTH / 2, helpBtnY, '❓ 게임 방법', {

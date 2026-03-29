@@ -4,7 +4,7 @@
 
 import { HangulComposer } from './jamo';
 import { evaluate, toEmojiGrid, JamoStatus, getBestStatus, type GuessFeedback, type SyllableFeedback } from './engine';
-import { getDailyWord, getPuzzleNumber, isValidWord, WORD_LENGTH } from './words';
+import { getDailyWord, getPuzzleNumber, isValidWord, WORD_LENGTH, getWordFromSeed } from './words';
 import { loadStats, recordWin, recordLoss, loadGameState, saveGameState, getWinPercentage, getAverageGuesses, type GameStats, type SavedGameState } from './stats';
 
 const MAX_GUESSES = 6;
@@ -20,6 +20,14 @@ export interface GameState {
   message: string | null;
   messageTimeout: number | null;
   jamoStatuses: Map<string, JamoStatus>;
+  isDuel: boolean;
+  duelSeed: number | null;
+  startTime: number;
+  endTime: number | null;
+}
+
+export interface DuelOptions {
+  seed: number;
 }
 
 export class Game {
@@ -27,13 +35,24 @@ export class Game {
   private composer: HangulComposer;
   private onUpdate: () => void;
 
-  constructor(onUpdate: () => void) {
+  constructor(onUpdate: () => void, duelOptions?: DuelOptions) {
     this.onUpdate = onUpdate;
     this.composer = new HangulComposer();
 
-    const today = new Date();
-    const puzzleNumber = getPuzzleNumber(today);
-    const answer = getDailyWord(today);
+    const isDuel = !!duelOptions;
+    let answer: string;
+    let puzzleNumber: number;
+    let duelSeed: number | null = null;
+
+    if (duelOptions) {
+      duelSeed = duelOptions.seed;
+      answer = getWordFromSeed(duelOptions.seed);
+      puzzleNumber = -1; // Not a daily puzzle
+    } else {
+      const today = new Date();
+      puzzleNumber = getPuzzleNumber(today);
+      answer = getDailyWord(today);
+    }
 
     this.state = {
       answer,
@@ -46,20 +65,26 @@ export class Game {
       message: null,
       messageTimeout: null,
       jamoStatuses: new Map(),
+      isDuel,
+      duelSeed,
+      startTime: Date.now(),
+      endTime: null,
     };
 
-    // Try to restore saved state
-    const saved = loadGameState();
-    if (saved && saved.puzzleNumber === puzzleNumber) {
-      // Replay saved guesses
-      for (const guessWord of saved.guesses) {
-        const feedback = evaluate(guessWord, answer);
-        this.state.guesses.push(feedback);
-        this.updateJamoStatuses(feedback);
-      }
-      if (saved.completed) {
-        this.state.gameOver = true;
-        this.state.won = saved.won;
+    // Try to restore saved state (only for daily mode)
+    if (!isDuel) {
+      const saved = loadGameState();
+      if (saved && saved.puzzleNumber === puzzleNumber) {
+        // Replay saved guesses
+        for (const guessWord of saved.guesses) {
+          const feedback = evaluate(guessWord, answer);
+          this.state.guesses.push(feedback);
+          this.updateJamoStatuses(feedback);
+        }
+        if (saved.completed) {
+          this.state.gameOver = true;
+          this.state.won = saved.won;
+        }
       }
     }
   }
@@ -149,13 +174,16 @@ export class Game {
     if (feedback.isCorrect) {
       this.state.gameOver = true;
       this.state.won = true;
-      recordWin(this.state.guesses.length);
-      saveGameState({
-        puzzleNumber: this.state.puzzleNumber,
-        guesses: this.state.guesses.map(g => g.guess),
-        completed: true,
-        won: true,
-      });
+      this.state.endTime = Date.now();
+      if (!this.state.isDuel) {
+        recordWin(this.state.guesses.length);
+        saveGameState({
+          puzzleNumber: this.state.puzzleNumber,
+          guesses: this.state.guesses.map(g => g.guess),
+          completed: true,
+          won: true,
+        });
+      }
       setTimeout(() => {
         this.showMessage(this.getWinMessage());
         this.onUpdate();
@@ -163,24 +191,29 @@ export class Game {
     } else if (this.state.guesses.length >= MAX_GUESSES) {
       this.state.gameOver = true;
       this.state.won = false;
-      recordLoss();
-      saveGameState({
-        puzzleNumber: this.state.puzzleNumber,
-        guesses: this.state.guesses.map(g => g.guess),
-        completed: true,
-        won: false,
-      });
+      this.state.endTime = Date.now();
+      if (!this.state.isDuel) {
+        recordLoss();
+        saveGameState({
+          puzzleNumber: this.state.puzzleNumber,
+          guesses: this.state.guesses.map(g => g.guess),
+          completed: true,
+          won: false,
+        });
+      }
       setTimeout(() => {
         this.showMessage(`정답: ${this.state.answer}`);
         this.onUpdate();
       }, 1500);
     } else {
-      saveGameState({
-        puzzleNumber: this.state.puzzleNumber,
-        guesses: this.state.guesses.map(g => g.guess),
-        completed: false,
-        won: false,
-      });
+      if (!this.state.isDuel) {
+        saveGameState({
+          puzzleNumber: this.state.puzzleNumber,
+          guesses: this.state.guesses.map(g => g.guess),
+          completed: false,
+          won: false,
+        });
+      }
     }
 
     this.onUpdate();
@@ -236,6 +269,13 @@ export class Game {
 
   getAverageGuesses(): string {
     return getAverageGuesses(this.getStats());
+  }
+
+  getElapsedMs(): number {
+    if (this.state.endTime) {
+      return this.state.endTime - this.state.startTime;
+    }
+    return Date.now() - this.state.startTime;
   }
 
   get maxGuesses(): number {

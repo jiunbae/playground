@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import {
   GAME_WIDTH, GAME_HEIGHT, GRID_COLS, CELL_SIZE, MAP_TOP, MAP_BOTTOM,
-  COLORS, TOWERS, TowerDef, STAGE_CONFIG,
+  COLORS, TOWERS, TowerDef, STAGE_CONFIG, WEEKLY_COLORS, getWeekLabel,
 } from '../config/GameConfig';
 import { MapGenerator, MapData, CellType } from '../systems/MapGenerator';
 import { PathFinder } from '../systems/PathFinder';
@@ -14,6 +14,8 @@ type GamePhase = 'prepare' | 'wave' | 'between_waves' | 'victory' | 'defeat';
 export class GameScene extends Phaser.Scene {
   // 스테이지
   private stage: number = 1;
+  private mode: 'normal' | 'weekly' = 'normal';
+  private weeklySeed: number = 0;
   private mapData!: MapData;
   private mapRows!: number;
 
@@ -67,6 +69,9 @@ export class GameScene extends Phaser.Scene {
   // Tower info tooltip
   private towerTooltip: Phaser.GameObjects.Container | null = null;
 
+  // Weekly challenge banner
+  private weeklyBanner: Phaser.GameObjects.Container | null = null;
+
   // Stats tracking
   private totalEnemiesKilled: number = 0;
   private totalTowersBuilt: number = 0;
@@ -76,8 +81,18 @@ export class GameScene extends Phaser.Scene {
     super('GameScene');
   }
 
-  init(data: { stage?: number } = {}): void {
-    this.stage = data.stage || 1;
+  init(data: { stage?: number; mode?: 'normal' | 'weekly'; seed?: number } = {}): void {
+    this.mode = data.mode || 'normal';
+    this.weeklySeed = data.seed || 0;
+
+    if (this.mode === 'weekly') {
+      // Weekly challenge: derive a stage-like difficulty from the seed
+      // Produces a challenge equivalent to stage 15-30 range for balanced difficulty
+      this.stage = 15 + (this.weeklySeed % 16);
+    } else {
+      this.stage = data.stage || 1;
+    }
+
     this.towers = [];
     this.enemies = [];
     this.gold = STAGE_CONFIG.startGold + Math.floor(this.stage / 5) * 25;
@@ -90,6 +105,7 @@ export class GameScene extends Phaser.Scene {
     this.activeTowerMenu = null;
     this.activeTowerMenuTimer = null;
     this.towerTooltip = null;
+    this.weeklyBanner = null;
     this.totalEnemiesKilled = 0;
     this.totalTowersBuilt = 0;
     this.totalGoldEarned = 0;
@@ -101,7 +117,8 @@ export class GameScene extends Phaser.Scene {
     // 맵 생성
     this.mapRows = Math.floor((MAP_BOTTOM - MAP_TOP) / CELL_SIZE);
     const mapGen = new MapGenerator();
-    this.mapData = mapGen.generate(this.stage, GRID_COLS, this.mapRows);
+    const mapSeed = this.mode === 'weekly' ? this.weeklySeed * 7919 + 31 : undefined;
+    this.mapData = mapGen.generate(this.stage, GRID_COLS, this.mapRows, mapSeed);
 
     // 패스파인더 초기화
     this.pathFinder = new PathFinder(GRID_COLS, this.mapRows);
@@ -137,11 +154,15 @@ export class GameScene extends Phaser.Scene {
 
     // 웨이브 생성
     this.waveSystem = new WaveSystem();
-    this.waves = this.waveSystem.generateWaves(this.stage);
+    this.waves = this.waveSystem.generateWaves(this.stage, mapSeed);
     this.totalWaves = this.waves.length;
 
-    // 사용 가능한 타워 필터링
-    this.availableTowers = TOWERS.filter(t => t.unlockStage <= this.stage);
+    // 사용 가능한 타워 필터링 (주간 챌린지: 기본 5종 해금)
+    if (this.mode === 'weekly') {
+      this.availableTowers = TOWERS.filter(t => t.unlockStage <= 35);
+    } else {
+      this.availableTowers = TOWERS.filter(t => t.unlockStage <= this.stage);
+    }
 
     // 맵 렌더링
     this.renderMap();
@@ -153,6 +174,37 @@ export class GameScene extends Phaser.Scene {
 
     // 입력 처리
     this.input.on('pointerdown', this.handleTap, this);
+
+    // 주간 챌린지 배너 표시
+    if (this.mode === 'weekly') {
+      this.createWeeklyBanner();
+    }
+  }
+
+  private createWeeklyBanner(): void {
+    const bannerY = MAP_TOP + 2;
+    const container = this.add.container(GAME_WIDTH / 2, bannerY).setDepth(19);
+
+    const bg = this.add.rectangle(0, 0, GAME_WIDTH - 20, 22, WEEKLY_COLORS.BANNER_BG, 0.85);
+    bg.setStrokeStyle(1, WEEKLY_COLORS.BORDER, 0.6);
+    container.add(bg);
+
+    const label = this.add.text(0, 0, `\u2694\uFE0F \uC8FC\uAC04 \uCC4C\uB9B0\uC9C0 \u2014 ${getWeekLabel()}`, {
+      fontSize: '10px', color: WEEKLY_COLORS.TEXT, fontStyle: 'bold',
+    }).setOrigin(0.5);
+    container.add(label);
+
+    this.weeklyBanner = container;
+
+    // Subtle pulse animation
+    this.tweens.add({
+      targets: container,
+      alpha: 0.7,
+      duration: 1500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
   }
 
   private renderMap(): void {
@@ -303,10 +355,17 @@ export class GameScene extends Phaser.Scene {
     }).setDepth(21);
 
     // 스테이지 표시
-    this.add.text(GAME_WIDTH / 2, 26, `스테이지 ${this.stage}`, {
-      fontSize: '11px', color: '#cccccc',
-      fontFamily: 'monospace',
-    }).setOrigin(0.5, 0).setDepth(21);
+    if (this.mode === 'weekly') {
+      this.add.text(GAME_WIDTH / 2, 26, `주간 챌린지`, {
+        fontSize: '11px', color: WEEKLY_COLORS.ACCENT_HEX,
+        fontFamily: 'monospace', fontStyle: 'bold',
+      }).setOrigin(0.5, 0).setDepth(21);
+    } else {
+      this.add.text(GAME_WIDTH / 2, 26, `스테이지 ${this.stage}`, {
+        fontSize: '11px', color: '#cccccc',
+        fontFamily: 'monospace',
+      }).setOrigin(0.5, 0).setDepth(21);
+    }
 
     // 페이즈 텍스트
     this.phaseText = this.add.text(GAME_WIDTH / 2, 42, '준비 페이즈 - 수호탑을 배치하세요', {
@@ -314,11 +373,11 @@ export class GameScene extends Phaser.Scene {
     }).setOrigin(0.5, 0).setDepth(21);
 
     // 뒤로가기 버튼
-    const backBtn = this.add.text(GAME_WIDTH - 25, 42, '✕', {
+    const backBtn = this.add.text(GAME_WIDTH - 25, 42, '\u2715', {
       fontSize: '16px', color: '#999999',
     }).setOrigin(0.5).setDepth(21).setInteractive();
     backBtn.on('pointerdown', () => {
-      this.scene.start('StageSelectScene');
+      this.scene.start(this.mode === 'weekly' ? 'TitleScene' : 'StageSelectScene');
     });
   }
 
@@ -939,20 +998,30 @@ export class GameScene extends Phaser.Scene {
     // Submit score to SDK
     try {
       const sdk = (window as any).__sdk;
+      const meta: Record<string, unknown> = {
+        stage: this.stage,
+        wavesCleared: this.currentWave,
+        healthRemaining: this.villageHealth,
+        goldEarned: this.totalGoldEarned,
+        victory,
+      };
+      if (this.mode === 'weekly') {
+        meta.weekly = true;
+        meta.weeklySeed = this.weeklySeed;
+      }
       sdk?.scores.submit({
-        score: this.stage,
-        meta: {
-          stage: this.stage,
-          wavesCleared: this.currentWave,
-          healthRemaining: this.villageHealth,
-          goldEarned: this.totalGoldEarned,
-          victory,
-        },
+        score: this.mode === 'weekly' ? this.calculateWeeklyScore() : this.stage,
+        meta,
       }).catch(() => {});
     } catch (_) {}
 
-    // 진행도 저장
-    if (victory) {
+    // 주간 챌린지 결과 저장
+    if (this.mode === 'weekly') {
+      this.saveWeeklyResult(victory);
+    }
+
+    // 진행도 저장 (일반 모드만)
+    if (victory && this.mode !== 'weekly') {
       const saved = localStorage.getItem('ohf_progress');
       const progress = saved ? JSON.parse(saved) : { highestCleared: 0 };
       if (this.stage > progress.highestCleared) {
@@ -993,10 +1062,16 @@ export class GameScene extends Phaser.Scene {
       // 스타 평가
       const healthRatio = this.villageHealth / this.maxVillageHealth;
       const stars = healthRatio >= 1 ? 3 : healthRatio >= 0.5 ? 2 : 1;
-      const starStr = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
+      const starStr = '\u2B50'.repeat(stars) + '\u2606'.repeat(3 - stars);
 
-      const title = this.add.text(0, -160, '🌅 마을이 깨어났습니다!', {
-        fontSize: '18px', color: '#ffd93d', fontStyle: 'bold',
+      const isWeekly = this.mode === 'weekly';
+      const titleLabel = isWeekly
+        ? `\u2694\uFE0F \uC8FC\uAC04 \uCC4C\uB9B0\uC9C0 \uC644\uB8CC!`
+        : '\uD83C\uDF05 \uB9C8\uC744\uC774 \uAE68\uC5B4\uB0AC\uC2B5\uB2C8\uB2E4!';
+      const titleColor = isWeekly ? WEEKLY_COLORS.ACCENT_HEX : '#ffd93d';
+
+      const title = this.add.text(0, -160, titleLabel, {
+        fontSize: '18px', color: titleColor, fontStyle: 'bold',
         stroke: '#000000', strokeThickness: 3,
       }).setOrigin(0.5);
 
@@ -1005,67 +1080,164 @@ export class GameScene extends Phaser.Scene {
       }).setOrigin(0.5);
 
       // ==================== VICTORY STATS ====================
-      const statsInfo = this.add.text(0, -55, [
-        `잔여 체력: ${this.villageHealth}/${this.maxVillageHealth}`,
-        `처치한 적: ${this.totalEnemiesKilled}마리`,
-        `배치한 수호탑: ${this.totalTowersBuilt}개`,
-        `획득한 골드: ${this.totalGoldEarned}G`,
-        `남은 골드: ${this.gold}G`,
-      ].join('\n'), {
+      const statsLines = [
+        `\uC794\uC5EC \uCCB4\uB825: ${this.villageHealth}/${this.maxVillageHealth}`,
+        `\uCC98\uCE58\uD55C \uC801: ${this.totalEnemiesKilled}\uB9C8\uB9AC`,
+        `\uBC30\uCE58\uD55C \uC218\uD638\uD0D1: ${this.totalTowersBuilt}\uAC1C`,
+        `\uD68D\uB4DD\uD55C \uACE8\uB4DC: ${this.totalGoldEarned}G`,
+        `\uB0A8\uC740 \uACE8\uB4DC: ${this.gold}G`,
+      ];
+
+      if (isWeekly) {
+        const score = this.calculateWeeklyScore();
+        statsLines.unshift(`\uC810\uC218: ${score}\uC810`);
+        statsLines.push('');
+        statsLines.push(`${getWeekLabel()} \uCC4C\uB9B0\uC9C0`);
+        const best = this.getWeeklyBest();
+        if (best) {
+          statsLines.push(`\uC774\uBC88 \uC8FC \uCD5C\uACE0: ${best.score}\uC810`);
+        }
+      }
+
+      const statsInfo = this.add.text(0, isWeekly ? -45 : -55, statsLines.join('\n'), {
         fontSize: '12px', color: '#cccccc',
         lineSpacing: 6, align: 'center',
       }).setOrigin(0.5);
 
       resultContainer.add([title, starsText, statsInfo]);
 
-      // 다음 스테이지 버튼
-      const nextBtn = this.createResultButton(0, 50, '▶ 다음 스테이지', 0x2e7d32, () => {
-        this.scene.restart({ stage: this.stage + 1 });
-      });
-      resultContainer.add(nextBtn);
+      if (isWeekly) {
+        // 다시 도전 버튼
+        const retryBtn = this.createResultButton(0, 70, '\uD83D\uDD04 \uB2E4\uC2DC \uB3C4\uC804', WEEKLY_COLORS.ACCENT, () => {
+          this.scene.restart({ mode: 'weekly', seed: this.weeklySeed });
+        });
+        resultContainer.add(retryBtn);
 
-      // 다시 도전 버튼
-      const retryBtn = this.createResultButton(0, 95, '🔄 다시 도전', 0x555555, () => {
-        this.scene.restart({ stage: this.stage });
-      });
-      resultContainer.add(retryBtn);
+        // 타이틀로 돌아가기
+        const menuBtn = this.createResultButton(0, 115, '\uD83C\uDFE0 \uD0C0\uC774\uD2C0\uB85C', 0x555555, () => {
+          this.scene.start('TitleScene');
+        });
+        resultContainer.add(menuBtn);
+      } else {
+        // 다음 스테이지 버튼
+        const nextBtn = this.createResultButton(0, 50, '\u25B6 \uB2E4\uC74C \uC2A4\uD14C\uC774\uC9C0', 0x2e7d32, () => {
+          this.scene.restart({ stage: this.stage + 1 });
+        });
+        resultContainer.add(nextBtn);
 
-      // 스테이지 선택 버튼
-      const menuBtn = this.createResultButton(0, 140, '🏠 스테이지 선택', 0x555555, () => {
-        this.scene.start('StageSelectScene');
-      });
-      resultContainer.add(menuBtn);
+        // 다시 도전 버튼
+        const retryBtn = this.createResultButton(0, 95, '\uD83D\uDD04 \uB2E4\uC2DC \uB3C4\uC804', 0x555555, () => {
+          this.scene.restart({ stage: this.stage });
+        });
+        resultContainer.add(retryBtn);
+
+        // 스테이지 선택 버튼
+        const menuBtn = this.createResultButton(0, 140, '\uD83C\uDFE0 \uC2A4\uD14C\uC774\uC9C0 \uC120\uD0DD', 0x555555, () => {
+          this.scene.start('StageSelectScene');
+        });
+        resultContainer.add(menuBtn);
+      }
     } else {
-      const title = this.add.text(0, -150, '😴 마을이 잠들었습니다...', {
-        fontSize: '18px', color: '#9b89b3', fontStyle: 'bold',
+      const isWeekly = this.mode === 'weekly';
+      const defeatTitle = isWeekly
+        ? `\u2694\uFE0F \uCC4C\uB9B0\uC9C0 \uC2E4\uD328...`
+        : '\uD83D\uDE34 \uB9C8\uC744\uC774 \uC7A0\uB4E4\uC5C8\uC2B5\uB2C8\uB2E4...';
+      const defeatColor = isWeekly ? WEEKLY_COLORS.ACCENT_HEX : '#9b89b3';
+
+      const title = this.add.text(0, -150, defeatTitle, {
+        fontSize: '18px', color: defeatColor, fontStyle: 'bold',
         stroke: '#000000', strokeThickness: 3,
       }).setOrigin(0.5);
 
       // ==================== DEFEAT STATS ====================
-      const info = this.add.text(0, -70, [
-        `물결 ${this.currentWave}/${this.totalWaves}에서 실패`,
+      const infoLines = [
+        `\uBB3C\uACB0 ${this.currentWave}/${this.totalWaves}\uC5D0\uC11C \uC2E4\uD328`,
         ``,
-        `처치한 적: ${this.totalEnemiesKilled}마리`,
-        `배치한 수호탑: ${this.totalTowersBuilt}개`,
-        `획득한 골드: ${this.totalGoldEarned}G`,
-        `남은 수호탑: ${this.towers.length}개`,
-      ].join('\n'), {
+        `\uCC98\uCE58\uD55C \uC801: ${this.totalEnemiesKilled}\uB9C8\uB9AC`,
+        `\uBC30\uCE58\uD55C \uC218\uD638\uD0D1: ${this.totalTowersBuilt}\uAC1C`,
+        `\uD68D\uB4DD\uD55C \uACE8\uB4DC: ${this.totalGoldEarned}G`,
+        `\uB0A8\uC740 \uC218\uD638\uD0D1: ${this.towers.length}\uAC1C`,
+      ];
+
+      if (isWeekly) {
+        const score = this.calculateWeeklyScore();
+        infoLines.splice(1, 0, `\uC810\uC218: ${score}\uC810`);
+        infoLines.push('');
+        infoLines.push(`${getWeekLabel()} \uCC4C\uB9B0\uC9C0`);
+      }
+
+      const info = this.add.text(0, -70, infoLines.join('\n'), {
         fontSize: '13px', color: '#cccccc',
         lineSpacing: 5, align: 'center',
       }).setOrigin(0.5);
 
       resultContainer.add([title, info]);
 
-      const retryBtn = this.createResultButton(0, 40, '🔄 다시 도전', COLORS.UI_ACCENT, () => {
-        this.scene.restart({ stage: this.stage });
-      });
-      resultContainer.add(retryBtn);
+      if (isWeekly) {
+        const retryBtn = this.createResultButton(0, 40, '\uD83D\uDD04 \uB2E4\uC2DC \uB3C4\uC804', WEEKLY_COLORS.ACCENT, () => {
+          this.scene.restart({ mode: 'weekly', seed: this.weeklySeed });
+        });
+        resultContainer.add(retryBtn);
 
-      const menuBtn = this.createResultButton(0, 90, '🏠 스테이지 선택', 0x555555, () => {
-        this.scene.start('StageSelectScene');
-      });
-      resultContainer.add(menuBtn);
+        const menuBtn = this.createResultButton(0, 90, '\uD83C\uDFE0 \uD0C0\uC774\uD2C0\uB85C', 0x555555, () => {
+          this.scene.start('TitleScene');
+        });
+        resultContainer.add(menuBtn);
+      } else {
+        const retryBtn = this.createResultButton(0, 40, '\uD83D\uDD04 \uB2E4\uC2DC \uB3C4\uC804', COLORS.UI_ACCENT, () => {
+          this.scene.restart({ stage: this.stage });
+        });
+        resultContainer.add(retryBtn);
+
+        const menuBtn = this.createResultButton(0, 90, '\uD83C\uDFE0 \uC2A4\uD14C\uC774\uC9C0 \uC120\uD0DD', 0x555555, () => {
+          this.scene.start('StageSelectScene');
+        });
+        resultContainer.add(menuBtn);
+      }
     }
+  }
+
+  // ==================== 주간 챌린지 헬퍼 ====================
+  private calculateWeeklyScore(): number {
+    const waveScore = this.currentWave * 100;
+    const healthBonus = this.villageHealth * 50;
+    const killBonus = this.totalEnemiesKilled * 10;
+    const goldBonus = Math.floor(this.totalGoldEarned / 10);
+    return waveScore + healthBonus + killBonus + goldBonus;
+  }
+
+  private saveWeeklyResult(victory: boolean): void {
+    try {
+      const result = {
+        seed: this.weeklySeed,
+        score: this.calculateWeeklyScore(),
+        wavesCleared: this.currentWave,
+        totalWaves: this.totalWaves,
+        healthRemaining: this.villageHealth,
+        goldEarned: this.totalGoldEarned,
+        enemiesKilled: this.totalEnemiesKilled,
+        victory,
+        timestamp: Date.now(),
+      };
+      const key = `ohf_weekly_${this.weeklySeed}`;
+      const existing = localStorage.getItem(key);
+      if (existing) {
+        const prev = JSON.parse(existing);
+        if (result.score > prev.score) {
+          localStorage.setItem(key, JSON.stringify(result));
+        }
+      } else {
+        localStorage.setItem(key, JSON.stringify(result));
+      }
+    } catch (_) { /* ignore */ }
+  }
+
+  private getWeeklyBest(): { score: number; wavesCleared: number; victory: boolean } | null {
+    try {
+      const key = `ohf_weekly_${this.weeklySeed}`;
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
   }
 
   private createResultButton(x: number, y: number, text: string, bgColor: number, callback: () => void): Phaser.GameObjects.Container {

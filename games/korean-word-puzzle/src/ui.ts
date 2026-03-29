@@ -4,6 +4,7 @@
 
 import './styles.css';
 import { Game } from './game';
+import type { DuelOptions } from './game';
 import { JamoStatus, type GuessFeedback, type SyllableFeedback } from './engine';
 import { decompose, isHangul, CHOSEONG, JUNGSEONG } from './jamo';
 import { WORD_LENGTH } from './words';
@@ -30,6 +31,37 @@ try {
 const MAX_GUESSES = 6;
 const LEADERBOARD_KEY = 'playground_korean-word-puzzle_leaderboard';
 const LEADERBOARD_MAX = 50;
+
+// --- Duel mode ---
+interface DuelData {
+  seed: number;
+  guesses: number;
+  won: boolean;
+  timeMs: number;
+}
+
+function encodeDuel(seed: number, guesses: number, won: boolean, timeMs: number): string {
+  const data = `${seed},${guesses},${won ? 1 : 0},${timeMs}`;
+  return btoa(data);
+}
+
+function decodeDuel(encoded: string): DuelData | null {
+  try {
+    const [seed, guesses, won, timeMs] = atob(encoded).split(',').map(Number);
+    if (isNaN(seed) || isNaN(guesses) || isNaN(timeMs)) return null;
+    return { seed, guesses, won: !!won, timeMs };
+  } catch {
+    return null;
+  }
+}
+
+function formatTime(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}초`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}분 ${seconds}초`;
+}
 
 interface LeaderboardRecord {
   name: string;
@@ -74,9 +106,27 @@ export class UI {
   private modalOverlay!: HTMLElement;
   private shiftActive: boolean = false;
   private scoreSubmitted: boolean = false;
+  private pendingDuel: DuelData | null = null;
 
   constructor() {
-    this.game = new Game(() => this.onGameUpdate());
+    // Check URL for duel parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const duelParam = urlParams.get('duel');
+    let duelOptions: DuelOptions | undefined;
+
+    if (duelParam) {
+      const duelData = decodeDuel(duelParam);
+      if (duelData) {
+        this.pendingDuel = duelData;
+        duelOptions = { seed: duelData.seed };
+        // Clean up URL without reload
+        const url = new URL(window.location.href);
+        url.searchParams.delete('duel');
+        window.history.replaceState({}, '', url.pathname + url.search);
+      }
+    }
+
+    this.game = new Game(() => this.onGameUpdate(), duelOptions);
     this.init();
     this.render();
     // Update login button state on load
@@ -87,9 +137,15 @@ export class UI {
     // Check if game just ended and we haven't submitted yet
     if (this.game.state.gameOver && !this.scoreSubmitted) {
       this.scoreSubmitted = true;
-      this.submitScore();
-      // Cloud save stats on game end
-      cloudSaveStats();
+      if (!this.game.state.isDuel) {
+        this.submitScore();
+        // Cloud save stats on game end
+        cloudSaveStats();
+      }
+      // If this is a duel game and we have pending duel data, show comparison after delay
+      if (this.game.state.isDuel && this.pendingDuel) {
+        setTimeout(() => this.showDuelComparison(), 2000);
+      }
     }
     this.render();
   }
@@ -127,6 +183,14 @@ export class UI {
       </div>
     `;
     app.appendChild(header);
+
+    // Duel mode badge
+    if (this.game.state.isDuel) {
+      const duelBadge = document.createElement('div');
+      duelBadge.className = 'duel-badge';
+      duelBadge.textContent = '\uD83C\uDD9A 대결 모드';
+      app.appendChild(duelBadge);
+    }
 
     // Message toast
     this.messageEl = document.createElement('div');
@@ -621,6 +685,12 @@ export class UI {
       </button>
     ` : '';
 
+    const duelButton = this.game.state.gameOver ? `
+      <button class="share-btn duel-btn" id="duel-btn">
+        \uD83C\uDD9A 친구 대결
+      </button>
+    ` : '';
+
     const streakCelebration = stats.currentStreak > 7 ? `
       <div class="streak-celebration">
         🔥 ${stats.currentStreak}연승 달성! 대단해요! 🔥
@@ -657,6 +727,7 @@ export class UI {
         </div>
 
         ${shareButton}
+        ${duelButton}
         <button class="modal-close-btn" onclick="this.closest('.modal-overlay').classList.add('hidden')">닫기</button>
       </div>
     `);
@@ -665,6 +736,10 @@ export class UI {
       const shareBtn = document.getElementById('share-btn');
       if (shareBtn) {
         shareBtn.addEventListener('click', () => this.shareResult());
+      }
+      const duelBtn = document.getElementById('duel-btn');
+      if (duelBtn) {
+        duelBtn.addEventListener('click', () => this.generateDuelLink());
       }
     }
   }
@@ -705,6 +780,127 @@ export class UI {
 
   private closeModal(): void {
     this.modalOverlay.classList.add('hidden');
+  }
+
+  private generateDuelLink(): void {
+    // Generate a random seed for the duel (not date-based)
+    const seed = Math.floor(Math.random() * 2147483647);
+    const guesses = this.game.state.guesses.length;
+    const won = this.game.state.won;
+    const timeMs = this.game.getElapsedMs();
+
+    // If the game was a daily game, we use a new random seed so the friend gets a fresh word
+    const encoded = encodeDuel(seed, guesses, won, timeMs);
+    const url = `${window.location.origin}${window.location.pathname}?duel=${encoded}`;
+
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        this.game.showMessage('대결 링크가 복사되었습니다!');
+      }).catch(() => {
+        this.fallbackCopyDuel(url);
+      });
+    } else {
+      this.fallbackCopyDuel(url);
+    }
+  }
+
+  private fallbackCopyDuel(url: string): void {
+    const ta = document.createElement('textarea');
+    ta.value = url;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    this.game.showMessage('대결 링크가 복사되었습니다!');
+  }
+
+  private showDuelComparison(): void {
+    if (!this.pendingDuel) return;
+
+    const opponent = this.pendingDuel;
+    const myGuesses = this.game.state.guesses.length;
+    const myWon = this.game.state.won;
+    const myTimeMs = this.game.getElapsedMs();
+
+    // Determine winner
+    let resultText: string;
+    let resultEmoji: string;
+    if (myWon && !opponent.won) {
+      resultEmoji = '\uD83C\uDF89';
+      resultText = '승리!';
+    } else if (!myWon && opponent.won) {
+      resultEmoji = '\uD83D\uDE22';
+      resultText = '패배...';
+    } else if (!myWon && !opponent.won) {
+      resultEmoji = '\uD83E\uDD1D';
+      resultText = '무승부';
+    } else {
+      // Both won - compare guesses first, then time
+      if (myGuesses < opponent.guesses) {
+        resultEmoji = '\uD83C\uDF89';
+        resultText = '승리!';
+      } else if (myGuesses > opponent.guesses) {
+        resultEmoji = '\uD83D\uDE22';
+        resultText = '패배...';
+      } else if (myTimeMs < opponent.timeMs) {
+        resultEmoji = '\uD83C\uDF89';
+        resultText = '승리! (더 빠름)';
+      } else if (myTimeMs > opponent.timeMs) {
+        resultEmoji = '\uD83D\uDE22';
+        resultText = '패배... (더 느림)';
+      } else {
+        resultEmoji = '\uD83E\uDD1D';
+        resultText = '무승부';
+      }
+    }
+
+    const opponentStatus = opponent.won ? '\u2705 성공' : '\u274C 실패';
+    const myStatus = myWon ? '\u2705 성공' : '\u274C 실패';
+
+    this.showModal(`
+      <div class="modal-content duel-result-modal">
+        <h2>\uD83C\uDD9A 대결 결과</h2>
+
+        <div class="duel-comparison">
+          <div class="duel-column">
+            <div class="duel-column-title">상대방</div>
+            <div class="duel-stat">${opponent.guesses}회 시도</div>
+            <div class="duel-stat">${opponentStatus}</div>
+            <div class="duel-stat">${formatTime(opponent.timeMs)}</div>
+          </div>
+          <div class="duel-vs">vs</div>
+          <div class="duel-column">
+            <div class="duel-column-title">나</div>
+            <div class="duel-stat">${myGuesses}회 시도</div>
+            <div class="duel-stat">${myStatus}</div>
+            <div class="duel-stat">${formatTime(myTimeMs)}</div>
+          </div>
+        </div>
+
+        <div class="duel-result">
+          <span class="duel-result-emoji">${resultEmoji}</span>
+          <span class="duel-result-text">${resultText}</span>
+        </div>
+
+        <div class="duel-actions">
+          <button class="share-btn duel-btn" id="duel-rematch-btn">\uD83D\uDD04 다시 대결</button>
+          <button class="share-btn" id="duel-share-btn">\uD83D\uDCE4 공유하기</button>
+        </div>
+
+        <button class="modal-close-btn" onclick="this.closest('.modal-overlay').classList.add('hidden')">닫기</button>
+      </div>
+    `);
+
+    const rematchBtn = document.getElementById('duel-rematch-btn');
+    if (rematchBtn) {
+      rematchBtn.addEventListener('click', () => this.generateDuelLink());
+    }
+    const shareBtn = document.getElementById('duel-share-btn');
+    if (shareBtn) {
+      shareBtn.addEventListener('click', () => this.shareResult());
+    }
   }
 }
 

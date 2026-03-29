@@ -562,3 +562,100 @@
   .keyboard { gap: 4px; padding: 4px 4px; }
   .key { min-height: 44px; }
 }
+
+/* --- Duel Mode --- */
+.duel-badge {
+  text-align: center;
+  padding: 6px 16px;
+  background: linear-gradient(135deg, #ff6b35, #f7c948);
+  color: #1a1a2e;
+  font-weight: bold;
+  font-size: 14px;
+  border-radius: 0 0 12px 12px;
+  max-width: 500px;
+  width: 100%;
+  box-sizing: border-box;
+  animation: duelBadgePulse 2s ease-in-out infinite;
+}
+
+@keyframes duelBadgePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+.duel-btn {
+  background: linear-gradient(135deg, #ff6b35, #f7c948) !important;
+  color: #1a1a2e !important;
+  font-weight: bold;
+}
+
+.duel-result-modal {
+  text-align: center;
+}
+
+.duel-comparison {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin: 20px 0;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+}
+
+.duel-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.duel-column-title {
+  font-weight: bold;
+  font-size: 16px;
+  margin-bottom: 4px;
+  color: #aaa;
+}
+
+.duel-stat {
+  font-size: 15px;
+  padding: 4px 0;
+}
+
+.duel-vs {
+  font-size: 20px;
+  font-weight: bold;
+  color: #666;
+  padding: 0 8px;
+}
+
+.duel-result {
+  margin: 16px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.duel-result-emoji {
+  font-size: 32px;
+}
+
+.duel-result-text {
+  font-size: 22px;
+  font-weight: bold;
+}
+
+.duel-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin: 16px 0 8px;
+}
+
+.duel-actions .share-btn {
+  flex: 1;
+  max-width: 160px;
+}

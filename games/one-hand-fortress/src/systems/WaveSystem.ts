@@ -5,8 +5,27 @@ export interface WaveData {
   delayAfter: number;
 }
 
+// 시드 기반 난수 생성기 (주간 챌린지 적 구성 결정용)
+class WaveSeededRandom {
+  private seed: number;
+  constructor(seed: number) {
+    this.seed = seed;
+  }
+  next(): number {
+    this.seed = (this.seed * 16807 + 0) % 2147483647;
+    return (this.seed - 1) / 2147483646;
+  }
+  nextInt(min: number, max: number): number {
+    return Math.floor(this.next() * (max - min + 1)) + min;
+  }
+}
+
 export class WaveSystem {
-  generateWaves(stage: number): WaveData[] {
+  /**
+   * Generate waves for a stage. If `seed` is provided, enemy composition
+   * variation is seeded deterministically (for weekly challenge).
+   */
+  generateWaves(stage: number, seed?: number): WaveData[] {
     // Ensure at least 5 waves, more for later stages
     const waveCount = Math.max(5, 3 + Math.floor(stage / 10));
     const healthMul = 1 + stage * 0.08;

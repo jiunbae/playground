@@ -151,6 +151,14 @@ export function getRandomWord(seed: number, difficulty: number = 2): string {
   return pool[rng.nextInt(pool.length)];
 }
 
+/** Get a word from an arbitrary seed (for duel mode) */
+export function getWordFromSeed(seed: number): string {
+  const rng = new SeededRandom(seed);
+  // Use all answer pools combined for duel mode
+  const pool = [...EASY_WORDS, ...NORMAL_WORDS, ...HARD_WORDS];
+  return pool[rng.nextInt(pool.length)];
+}
+
 /** Get puzzle number (days since epoch) */
 export function getPuzzleNumber(date: Date = new Date()): number {
   const epoch = new Date(2026, 0, 1); // Jan 1, 2026
