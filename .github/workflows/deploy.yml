@@ -1,7 +1,9 @@
-name: Build & Deploy Games
+name: Build Games
 
 on:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -27,25 +29,15 @@ jobs:
       - name: Build all games
         run: pnpm -r --filter './games/*' build
 
-      - name: Collect build artifacts
+      - name: Verify builds
         run: |
-          mkdir -p deploy/games
+          count=0
           for game in games/*/; do
-            name=$(basename "$game")
-            if [ -d "$game/dist" ]; then
-              cp -r "$game/dist" "deploy/games/$name"
+            if [ -f "$game/dist/index.html" ]; then
+              count=$((count+1))
+            else
+              echo "❌ $(basename $game) missing dist"
+              exit 1
             fi
           done
-          cp portal/index.html deploy/games/index.html 2>/dev/null || true
-
-      - name: Deploy to blog repo
-        continue-on-error: true
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          personal_token: ${{ secrets.DEPLOY_TOKEN }}
-          external_repository: jiunbae/jiunbae.github.io
-          publish_branch: main
-          publish_dir: ./deploy/games
-          destination_dir: public/games
-          keep_files: false
-          commit_message: 'deploy: Update playground games from ${{ github.sha }}'
+          echo "✅ $count games built successfully"
