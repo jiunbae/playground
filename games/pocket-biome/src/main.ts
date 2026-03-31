@@ -931,7 +931,7 @@ function render() {
   speeds.forEach((s, i) => {
     const bx = W - 200 + i * 48;
     ctx.beginPath();
-    ctx.roundRect(bx, 8, 40, 24, 6);
+    ctx.roundRect(bx, 4, 44, 34, 6);
     ctx.fillStyle = simSpeed === s ? '#22c55e' : '#1a3a2a';
     ctx.fill();
     ctx.strokeStyle = simSpeed === s ? '#4ade80' : '#2a4a3a';
@@ -940,14 +940,14 @@ function render() {
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
     ctx.font = '11px sans-serif';
-    ctx.fillText(speedLabels[i], bx + 20, 24);
+    ctx.fillText(speedLabels[i], bx + 22, 26);
   });
 
   // Tool buttons at bottom with rounded backdrop
   const tools: [typeof tool, string][] = [['observe', '\uD83D\uDD0D'], ['food', '\uD83C\uDF31'], ['species', '\u2795']];
   ctx.save();
   ctx.beginPath();
-  ctx.roundRect(4, H - 42, W - 8, 38, 10);
+  ctx.roundRect(4, H - 50, W - 8, 46, 10);
   ctx.fillStyle = 'rgba(10,26,16,0.78)';
   ctx.fill();
   ctx.strokeStyle = 'rgba(74,222,128,0.15)';
@@ -957,7 +957,7 @@ function render() {
   tools.forEach(([t, icon], i) => {
     const bx = W / 2 - 80 + i * 55;
     ctx.beginPath();
-    ctx.roundRect(bx, H - 36, 48, 30, 8);
+    ctx.roundRect(bx, H - 46, 48, 44, 8);
     ctx.fillStyle = tool === t ? '#1a4a2a' : '#0a1a10';
     ctx.fill();
     ctx.strokeStyle = tool === t ? '#4ade80' : '#2a4a3a';
@@ -966,12 +966,12 @@ function render() {
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
     ctx.font = '16px sans-serif';
-    ctx.fillText(icon, bx + 24, H - 17);
+    ctx.fillText(icon, bx + 24, H - 20);
   });
 
   // Journal/Stats buttons
-  drawButton(10, H - 36, 60, 32, '\uD83D\uDCD3', showJournalOverlay ? '#2a5a3a' : '#1a3a2a');
-  drawButton(78, H - 36, 60, 32, '\uD83D\uDCCA', showStatsOverlay ? '#2a5a3a' : '#1a3a2a');
+  drawButton(10, H - 46, 60, 44, '\uD83D\uDCD3', showJournalOverlay ? '#2a5a3a' : '#1a3a2a');
+  drawButton(78, H - 46, 60, 44, '\uD83D\uDCCA', showStatsOverlay ? '#2a5a3a' : '#1a3a2a');
 
   // ==================== ENHANCED SELECTED CREATURE PANEL ====================
   if (selected && selected.alive) {
@@ -1454,7 +1454,7 @@ canvas.addEventListener('mouseup', e => {
   const wp = screenToWorld(e.clientX, e.clientY);
   if (tool === 'observe') {
     selected = null;
-    let minD = 20 / camera.zoom;
+    let minD = 30 / camera.zoom;
     creatures.forEach(c => {
       const d = Math.hypot(c.pos.x - wp.x, c.pos.y - wp.y);
       if (d < minD) { minD = d; selected = c; }
@@ -1492,18 +1492,35 @@ canvas.addEventListener('wheel', e => {
   camera.zoom = Math.max(0.2, Math.min(3, camera.zoom));
 }, { passive: false });
 
-// Touch support
+// Pinch-to-zoom
+let pinchDist = 0;
 canvas.addEventListener('touchstart', e => {
-  e.preventDefault();
-  const t = e.touches[0];
-  canvas.dispatchEvent(new MouseEvent('mousedown', { clientX: t.clientX, clientY: t.clientY }));
+  if (e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    pinchDist = Math.hypot(dx, dy);
+  } else {
+    e.preventDefault();
+    const t = e.touches[0];
+    canvas.dispatchEvent(new MouseEvent('mousedown', { clientX: t.clientX, clientY: t.clientY }));
+  }
 }, { passive: false });
 canvas.addEventListener('touchmove', e => {
-  e.preventDefault();
-  const t = e.touches[0];
-  canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: t.clientX, clientY: t.clientY }));
+  if (e.touches.length === 2 && pinchDist > 0) {
+    e.preventDefault();
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const newDist = Math.hypot(dx, dy);
+    camera.zoom = Math.max(0.2, Math.min(3, camera.zoom * (newDist / pinchDist)));
+    pinchDist = newDist;
+  } else {
+    e.preventDefault();
+    const t = e.touches[0];
+    canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: t.clientX, clientY: t.clientY }));
+  }
 }, { passive: false });
 canvas.addEventListener('touchend', e => {
+  pinchDist = 0;
   const t = e.changedTouches[0];
   canvas.dispatchEvent(new MouseEvent('mouseup', { clientX: t.clientX, clientY: t.clientY }));
 });

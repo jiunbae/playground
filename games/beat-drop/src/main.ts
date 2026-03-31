@@ -923,6 +923,7 @@ function judgeHit(lane: number) {
         size: 2 + Math.random() * 5,
       });
     }
+    if (state.particles.length > 200) state.particles.splice(0, state.particles.length - 200);
 
     // Spawn expanding hit ring
     state.hitRings.push({
@@ -1573,12 +1574,16 @@ window.addEventListener('keydown', (e) => {
 });
 
 // Touch / Click
-function handlePointer(x: number, y: number) {
-  if (checkButtonClick(x, y)) return;
+function handlePointer(clientX: number, clientY: number) {
+  const rect = canvas.getBoundingClientRect();
+  const canvasX = (clientX - rect.left) / rect.width * W;
+  const canvasY = (clientY - rect.top) / rect.height * H;
+
+  if (checkButtonClick(canvasX, canvasY)) return;
 
   if (state.scene === 'playing' && state.isPlaying) {
     // Full-screen 4-column touch: divide entire screen width into 4 lanes
-    const lane = Math.floor((x / W) * LANE_COUNT);
+    const lane = Math.floor(canvasX / W * LANE_COUNT);
     const clampedLane = Math.max(0, Math.min(LANE_COUNT - 1, lane));
     handleLaneInput(clampedLane);
   }
@@ -1638,6 +1643,9 @@ function gameLoop() {
 
   requestAnimationFrame(gameLoop);
 }
+
+// Ensure audio context unlocks on first touch (iOS)
+document.addEventListener('touchstart', () => initAudio(), { once: true });
 
 // Start
 requestAnimationFrame(gameLoop);

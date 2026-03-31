@@ -108,6 +108,14 @@ export class GameplayScene extends Phaser.Scene {
 
     // Drawing hint: show ghost hint on first visit to a stage
     this._showDrawingHintIfFirstTime();
+
+    // Scene cleanup on shutdown
+    this.events.on('shutdown', () => {
+      if (this.drawingSystem) this.drawingSystem.destroy();
+      this.drawnBodies = [];
+      this.starSprites = [];
+      this.targetSprites = [];
+    });
   }
 
   _createObstacles() {
@@ -827,5 +835,9 @@ export class GameplayScene extends Phaser.Scene {
     if (this.bodyRenderEvent) this.bodyRenderEvent.destroy();
     if (this.autoStopTimer) this.autoStopTimer.destroy();
     if (this.groundCheckEvent) this.groundCheckEvent.destroy();
+    if (this.drawingSystem) this.drawingSystem.destroy();
+    this.drawnBodies = [];
+    this.starSprites = [];
+    this.targetSprites = [];
   }
 }

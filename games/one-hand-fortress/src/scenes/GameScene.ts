@@ -332,7 +332,7 @@ export class GameScene extends Phaser.Scene {
     this.add.rectangle(0, 0, GAME_WIDTH, 56, 0x000000, 0.3).setOrigin(0).setDepth(20);
 
     // 마을 체력 바
-    const heartIcon = this.add.text(8, 6, '❤️', { fontSize: '14px' }).setDepth(21);
+    const heartIcon = this.add.text(16, 6, '❤️', { fontSize: '14px' }).setDepth(21);
     this.healthBarBg = this.add.rectangle(30, 10, 80, 10, 0x000000, 0.5).setOrigin(0).setDepth(21);
     this.healthBarBg.setStrokeStyle(1, 0x666666, 0.5);
     this.healthBar = this.add.rectangle(30, 10, 80, 10, 0x4caf50, 0.9).setOrigin(0).setDepth(21);
@@ -373,9 +373,10 @@ export class GameScene extends Phaser.Scene {
     }).setOrigin(0.5, 0).setDepth(21);
 
     // 뒤로가기 버튼
-    const backBtn = this.add.text(GAME_WIDTH - 25, 42, '\u2715', {
+    const backBtn = this.add.text(GAME_WIDTH - 33, 42, '\u2715', {
       fontSize: '16px', color: '#999999',
     }).setOrigin(0.5).setDepth(21).setInteractive();
+    backBtn.setInteractive(new Phaser.Geom.Rectangle(-22, -22, 44, 44), Phaser.Geom.Rectangle.Contains);
     backBtn.on('pointerdown', () => {
       this.scene.start(this.mode === 'weekly' ? 'TitleScene' : 'StageSelectScene');
     });
@@ -383,7 +384,7 @@ export class GameScene extends Phaser.Scene {
 
   private createTowerSlots(): void {
     const slotY = GAME_HEIGHT - 130;
-    const slotSize = 48;
+    const slotSize = Math.max(48, 48); // Ensure minimum 48px for touch targets
     const gap = 6;
     const totalWidth = this.availableTowers.length * (slotSize + gap) - gap;
     const startX = (GAME_WIDTH - totalWidth) / 2;

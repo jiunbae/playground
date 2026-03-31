@@ -421,7 +421,12 @@ function buildButtons(): void {
     } });
     buttons.push({ x: W / 2 - 100, y: H * 0.6, w: 200, h: 50, label: '\uD83D\uDCD6 \uC2DD\uBB3C \uB3C4\uAC10', action: () => { screen = 'catalog'; } });
   } else if (screen === 'garden') {
-    const bw = 70, bh = 36, by = H - 44, gap = 6;
+    const gap = 6;
+    const buttonCount = 5;
+    const totalGap = (buttonCount - 1) * gap;
+    const bw = Math.min(70, (W - 20 - totalGap) / buttonCount);
+    const bh = 44;
+    const by = H - 52;
     const startX = W / 2 - (bw * 5 + gap * 4) / 2;
 
     const plantTypes = garden.unlockedPlants;
@@ -434,9 +439,10 @@ function buildButtons(): void {
 
     // Plant selector (top)
     if (selectedTool === 'plant') {
+      const maxCards = W < 400 ? 4 : 6;
       const pw = 56, ph = 56;
-      const pStartX = W / 2 - (pw * Math.min(plantTypes.length, 6) + gap * (Math.min(plantTypes.length, 6) - 1)) / 2;
-      plantTypes.slice(0, 6).forEach((pid, i) => {
+      const pStartX = W / 2 - (pw * Math.min(plantTypes.length, maxCards) + gap * (Math.min(plantTypes.length, maxCards) - 1)) / 2;
+      plantTypes.slice(0, maxCards).forEach((pid, i) => {
         const pt = getPlantType(pid);
         if (pt) {
           buttons.push({

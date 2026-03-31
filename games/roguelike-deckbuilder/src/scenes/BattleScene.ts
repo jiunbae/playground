@@ -410,6 +410,7 @@ export class BattleScene extends Phaser.Scene {
       });
 
       bg.on('pointerover', () => {
+        if (this.input.activePointer.wasTouch) return;
         if (this.combat.canPlayCard(card)) {
           container.setScale(1.1);
           container.y -= 15;

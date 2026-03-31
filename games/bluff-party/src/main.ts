@@ -877,13 +877,13 @@ function renderDrawingGame(): void {
       <div id="timer" style="font-size:24px;font-weight:900;color:${COLORS.yellow};margin-bottom:10px;">30</div>
       <canvas id="draw-canvas" width="340" height="340" style="background:white;border-radius:12px;touch-action:none;cursor:crosshair;max-width:100%;"></canvas>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;justify-content:center;">
-        <button class="color-btn" data-color="#000000" style="width:32px;height:32px;border-radius:50%;background:#000;border:3px solid ${COLORS.yellow};cursor:pointer;"></button>
-        <button class="color-btn" data-color="#e74c3c" style="width:32px;height:32px;border-radius:50%;background:#e74c3c;border:3px solid transparent;cursor:pointer;"></button>
-        <button class="color-btn" data-color="#3498db" style="width:32px;height:32px;border-radius:50%;background:#3498db;border:3px solid transparent;cursor:pointer;"></button>
-        <button class="color-btn" data-color="#27ae60" style="width:32px;height:32px;border-radius:50%;background:#27ae60;border:3px solid transparent;cursor:pointer;"></button>
-        <button class="color-btn" data-color="#f39c12" style="width:32px;height:32px;border-radius:50%;background:#f39c12;border:3px solid transparent;cursor:pointer;"></button>
-        <button class="color-btn" data-color="#9b59b6" style="width:32px;height:32px;border-radius:50%;background:#9b59b6;border:3px solid transparent;cursor:pointer;"></button>
-        <button id="btn-clear" style="width:32px;height:32px;border-radius:50%;background:${COLORS.darkGray};border:2px solid ${COLORS.gray};cursor:pointer;font-size:14px;color:white;display:flex;align-items:center;justify-content:center;">\u2716</button>
+        <button class="color-btn" data-color="#000000" style="width:44px;height:44px;border-radius:50%;background:#000;border:3px solid ${COLORS.yellow};cursor:pointer;"></button>
+        <button class="color-btn" data-color="#e74c3c" style="width:44px;height:44px;border-radius:50%;background:#e74c3c;border:3px solid transparent;cursor:pointer;"></button>
+        <button class="color-btn" data-color="#3498db" style="width:44px;height:44px;border-radius:50%;background:#3498db;border:3px solid transparent;cursor:pointer;"></button>
+        <button class="color-btn" data-color="#27ae60" style="width:44px;height:44px;border-radius:50%;background:#27ae60;border:3px solid transparent;cursor:pointer;"></button>
+        <button class="color-btn" data-color="#f39c12" style="width:44px;height:44px;border-radius:50%;background:#f39c12;border:3px solid transparent;cursor:pointer;"></button>
+        <button class="color-btn" data-color="#9b59b6" style="width:44px;height:44px;border-radius:50%;background:#9b59b6;border:3px solid transparent;cursor:pointer;"></button>
+        <button id="btn-clear" style="width:44px;height:44px;border-radius:50%;background:${COLORS.darkGray};border:2px solid ${COLORS.gray};cursor:pointer;font-size:14px;color:white;display:flex;align-items:center;justify-content:center;">\u2716</button>
       </div>
       <button id="btn-done" style="background:linear-gradient(135deg,${COLORS.green},#219a52);color:white;border:none;padding:14px 40px;border-radius:50px;font-size:16px;font-weight:700;cursor:pointer;margin-top:12px;box-shadow:0 4px 15px rgba(39,174,96,0.4);">
         완료
@@ -893,6 +893,11 @@ function renderDrawingGame(): void {
 
   const canvas = document.getElementById('draw-canvas') as HTMLCanvasElement;
   const ctx = canvas.getContext('2d')!;
+  const canvasSize = 340;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvasSize * dpr;
+  canvas.height = canvasSize * dpr;
+  ctx.scale(dpr, dpr);
   let drawing = false;
   let currentColor = '#000000';
   let lastX = 0;
@@ -929,7 +934,7 @@ function renderDrawingGame(): void {
   canvas.addEventListener('mouseup', () => { drawing = false; });
   canvas.addEventListener('mouseleave', () => { drawing = false; });
 
-  canvas.addEventListener('touchstart', (e) => { e.preventDefault(); drawing = true; const p = getPos(e); lastX = p.x; lastY = p.y; }, { passive: false });
+  canvas.addEventListener('touchstart', (e) => { e.preventDefault(); if (e.touches.length > 1) { drawing = false; return; } drawing = true; const p = getPos(e); lastX = p.x; lastY = p.y; }, { passive: false });
   canvas.addEventListener('touchmove', (e) => {
     e.preventDefault();
     if (!drawing) return;

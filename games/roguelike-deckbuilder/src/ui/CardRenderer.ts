@@ -137,7 +137,9 @@ export class CardRenderer {
     const count = cards.length;
     if (count === 0) return;
 
-    const spacing = Math.min(CARD_WIDTH + 6, maxWidth / count);
+    const scale = maxWidth < 500 ? 0.7 : maxWidth < 650 ? 0.85 : 1.0;
+    cards.forEach(c => c.setScale(scale));
+    const spacing = Math.min((CARD_WIDTH * scale) + 6, maxWidth / count);
     const totalWidth = spacing * (count - 1);
     const startX = centerX - totalWidth / 2;
 

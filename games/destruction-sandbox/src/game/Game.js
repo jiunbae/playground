@@ -174,6 +174,10 @@ export class Game {
       if (this.state !== 'playing' && this.state !== 'sandbox') return;
       // Camera panning could go here
     });
+
+    this.input.pinchCallback = (scale) => {
+      this.renderer.camera.targetZoom = Math.max(0.3, Math.min(3, this.renderer.camera.targetZoom * scale));
+    };
   }
 
   _applyTool(tool, pos) {

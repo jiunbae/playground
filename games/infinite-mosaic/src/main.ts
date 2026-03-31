@@ -491,9 +491,20 @@ class Game {
   trayDragging = false;
   trayVelocity = 0;
 
+  // Long-press rotation state
+  longPressTimer: ReturnType<typeof setTimeout> | null = null;
+  longPressPiece: PieceData | null = null;
+  longPressMoved = false;
+
+  // Gallery touch scroll state
+  galleryTouchStartY = 0;
+  galleryTouchScrollStart = 0;
+  galleryTouching = false;
+
   constructor() {
     this.canvas = document.getElementById('game') as HTMLCanvasElement;
     this.ctx = this.canvas.getContext('2d')!;
+    this.canvas.style.touchAction = 'none';
     this.loadGallery();
     try {
       this.tutorialShown = localStorage.getItem('infinite-mosaic-tutorial-shown') === '1';
@@ -870,6 +881,14 @@ class Game {
 
     if (this.screen !== 'puzzle') return;
 
+    // Gallery touch scroll
+    if (this.screen === 'gallery') {
+      this.galleryTouching = true;
+      this.galleryTouchStartY = pos.y;
+      this.galleryTouchScrollStart = this.galleryScroll;
+      return;
+    }
+
     // Check tray area for scrolling
     if (pos.y >= this.trayOffsetY) {
       // Find piece under pointer in tray
@@ -879,6 +898,19 @@ class Game {
         this.dragOffset = { x: pos.x - piece.x, y: pos.y - piece.y };
         piece.scale = 1.15;
         piece.opacity = 0.85;
+
+        // Long-press rotation for mobile
+        this.longPressPiece = piece;
+        this.longPressMoved = false;
+        this.longPressTimer = setTimeout(() => {
+          if (this.longPressPiece === piece && !this.longPressMoved) {
+            this.rotatePiece(piece);
+            this.draggingPiece = null;
+            piece.scale = 1;
+            piece.opacity = 1;
+          }
+          this.longPressTimer = null;
+        }, 500);
       } else {
         // Start tray scroll
         this.trayDragging = true;
@@ -915,9 +947,21 @@ class Game {
       this.harmonyTooltipVisible = false;
     }
 
+    // Gallery touch scroll
+    if (this.galleryTouching && this.screen === 'gallery') {
+      const dy = this.galleryTouchStartY - pos.y;
+      this.galleryScroll = Math.max(0, this.galleryTouchScrollStart + dy);
+    }
+
     if (this.draggingPiece) {
       this.draggingPiece.x = pos.x - this.dragOffset.x;
       this.draggingPiece.y = pos.y - this.dragOffset.y;
+      // Cancel long-press if moved
+      this.longPressMoved = true;
+      if (this.longPressTimer) {
+        clearTimeout(this.longPressTimer);
+        this.longPressTimer = null;
+      }
     }
 
     if (this.trayDragging) {
@@ -930,6 +974,16 @@ class Game {
 
   onPointerUp(e: PointerEvent) {
     const pos = this.getPointerPos(e);
+
+    // Clean up long-press timer
+    if (this.longPressTimer) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+    }
+    this.longPressPiece = null;
+
+    // End gallery touch scroll
+    this.galleryTouching = false;
 
     if (this.draggingPiece) {
       const piece = this.draggingPiece;
