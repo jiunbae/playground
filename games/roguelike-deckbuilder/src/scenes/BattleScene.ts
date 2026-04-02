@@ -8,6 +8,83 @@ import { CardInstance, getCardEffects, getCardName } from '../data/cards';
 import { gameState } from '../systems/GameState';
 import { DungeonMap, MapGenerator } from '../systems/MapGenerator';
 
+// --- BattleSFX: Web Audio sound effects ---
+class BattleSFX {
+  private ctx: AudioContext | null = null;
+
+  init(): void {
+    if (this.ctx) return;
+    try { this.ctx = new AudioContext(); } catch { /* no audio */ }
+  }
+
+  private ensureCtx(): AudioContext | null {
+    if (!this.ctx) return null;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    return this.ctx;
+  }
+
+  playBlockDing(): void {
+    const ctx = this.ensureCtx();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 1200;
+    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.12);
+  }
+
+  playEnergySpent(): void {
+    const ctx = this.ensureCtx();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.06, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.15);
+  }
+
+  playTurnEndSwoosh(): void {
+    const ctx = this.ensureCtx();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(800, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.2);
+    gain.gain.setValueAtTime(0.05, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.2);
+  }
+
+  playHit(): void {
+    const ctx = this.ensureCtx();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(150, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(60, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.1);
+  }
+}
+
+const battleSFX = new BattleSFX();
+
 export class BattleScene extends Phaser.Scene {
   private combat!: CombatSystem;
   private enemies: EnemyData[] = [];
@@ -50,6 +127,9 @@ export class BattleScene extends Phaser.Scene {
     this.enemyContainers = [];
     this.selectedCardIndex = -1;
     this.isAnimating = false;
+
+    // Init audio on first interaction
+    this.input.once('pointerdown', () => battleSFX.init());
 
     // Initialize combat
     this.combat = new CombatSystem();
@@ -471,16 +551,76 @@ export class BattleScene extends Phaser.Scene {
     }
 
     this.isAnimating = true;
+    const cardContainer = this.handCards[this.selectedCardIndex];
     this.selectedCardIndex = -1;
 
+    // Energy spent sound
+    battleSFX.playEnergySpent();
+
+    // Determine target position for card fly animation
+    const ec = this.enemyContainers.find(c => c.getData('index') === targetIndex);
+    const targetX = ec ? ec.x : GAME_WIDTH / 2;
+    const targetY = ec ? ec.y : 200;
+    const startX = cardContainer ? cardContainer.x : GAME_WIDTH / 2;
+    const startY = cardContainer ? cardContainer.y : GAME_HEIGHT - 175;
+
+    // Bezier control point (arc upward)
+    const ctrlX = (startX + targetX) / 2;
+    const ctrlY = Math.min(startY, targetY) - 120;
+
+    // Animate card along bezier arc
+    if (cardContainer) {
+      const duration = 400;
+      let elapsed = 0;
+      const arcEvent = this.time.addEvent({
+        delay: 16,
+        loop: true,
+        callback: () => {
+          elapsed += 16;
+          const t = Math.min(1, elapsed / duration);
+          const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+          // Quadratic bezier
+          const invT = 1 - eased;
+          cardContainer.x = invT * invT * startX + 2 * invT * eased * ctrlX + eased * eased * targetX;
+          cardContainer.y = invT * invT * startY + 2 * invT * eased * ctrlY + eased * eased * targetY;
+          cardContainer.setScale(1 - eased * 0.5);
+          cardContainer.setAlpha(1 - eased * 0.7);
+
+          if (t >= 1) {
+            arcEvent.destroy();
+            this.applyCardEffect(card, targetIndex);
+          }
+        },
+      });
+    } else {
+      this.applyCardEffect(card, targetIndex);
+    }
+  }
+
+  private applyCardEffect(card: CardInstance, targetIndex: number): void {
     const result = this.combat.playCard(card, targetIndex);
 
-    // Show damage numbers
+    // Play appropriate sounds based on result
+    if (result.damageDealt > 0) {
+      battleSFX.playHit();
+    }
+    if (result.blockGained && result.blockGained > 0) {
+      battleSFX.playBlockDing();
+    }
+
+    // Show damage numbers + enemy hit flash
     if (result.damageDealt > 0 && this.combat.enemies[targetIndex]) {
-      const enemy = this.combat.enemies[targetIndex];
       const ec = this.enemyContainers.find(c => c.getData('index') === targetIndex);
       if (ec) {
         UIHelper.showDamageNumber(this, ec.x, ec.y - 60, result.damageDealt);
+        // Red tint flash on enemy
+        const hitFlash = this.add.rectangle(ec.x, ec.y, 110, 110, 0xff0000, 0.4).setDepth(50);
+        this.tweens.add({
+          targets: hitFlash,
+          alpha: 0,
+          duration: 100,
+          onComplete: () => hitFlash.destroy(),
+        });
       }
     }
 
@@ -489,7 +629,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // Refresh UI after short delay
-    this.time.delayedCall(300, () => {
+    this.time.delayedCall(200, () => {
       this.isAnimating = false;
 
       if (result.phase === 'victory') {
@@ -511,6 +651,7 @@ export class BattleScene extends Phaser.Scene {
     if (this.isAnimating || this.combat.phase !== 'player_turn') return;
 
     this.isAnimating = true;
+    battleSFX.playTurnEndSwoosh();
 
     // Capture enemy intents before they act
     const intents = this.combat.enemies

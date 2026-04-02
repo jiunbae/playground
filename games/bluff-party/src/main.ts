@@ -222,6 +222,107 @@ let roundHistory: { round: number; type: MiniGameType; blufferIndex: number; cau
 
 const app = document.getElementById('app')!;
 
+// --- Web Audio SFX ---
+let audioCtx: AudioContext | null = null;
+function getAudioCtx(): AudioContext {
+  if (!audioCtx) audioCtx = new AudioContext();
+  return audioCtx;
+}
+
+function playPopSound(): void {
+  try {
+    const ctx = getAudioCtx();
+    const now = ctx.currentTime;
+    const bufferSize = ctx.sampleRate * 0.06;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 1200; bp.Q.value = 2;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    src.connect(bp); bp.connect(gain); gain.connect(ctx.destination);
+    src.start(now); src.stop(now + 0.06);
+  } catch {}
+}
+
+function playRevealSound(): void {
+  try {
+    const ctx = getAudioCtx();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(300, now);
+    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.4);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(now); osc.stop(now + 0.5);
+  } catch {}
+}
+
+function playWinJingle(): void {
+  try {
+    const ctx = getAudioCtx();
+    const now = ctx.currentTime;
+    [523, 659, 784, 1047].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine'; osc.frequency.value = freq;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, now + i * 0.1);
+      g.gain.linearRampToValueAtTime(0.2, now + i * 0.1 + 0.05);
+      g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.3);
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(now + i * 0.1); osc.stop(now + i * 0.1 + 0.3);
+    });
+  } catch {}
+}
+
+function playLoseBuzzer(): void {
+  try {
+    const ctx = getAudioCtx();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth'; osc.frequency.value = 150;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.2, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    osc.connect(g); g.connect(ctx.destination);
+    osc.start(now); osc.stop(now + 0.4);
+  } catch {}
+}
+
+function playConfettiBurst(): void {
+  try {
+    const ctx = getAudioCtx();
+    const now = ctx.currentTime;
+    [800, 1000, 1200, 1400, 1600].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine'; osc.frequency.value = freq;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, now + i * 0.06);
+      g.gain.linearRampToValueAtTime(0.15, now + i * 0.06 + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.2);
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(now + i * 0.06); osc.stop(now + i * 0.06 + 0.2);
+    });
+  } catch {}
+}
+
+/** Fade transition: sets container opacity to 0, calls callback, then fades to 1 */
+function fadeTransition(callback: () => void): void {
+  app.style.transition = 'opacity 0.2s ease';
+  app.style.opacity = '0';
+  setTimeout(() => {
+    callback();
+    app.style.opacity = '1';
+  }, 200);
+}
+
 // --- Inject Enhanced CSS ---
 const styleEl = document.createElement('style');
 styleEl.textContent = `
@@ -388,6 +489,14 @@ styleEl.textContent = `
     filter: brightness(1.1);
     transform: scale(0.97);
   }
+
+  /* Button press feedback */
+  button {
+    transition: transform 0.1s ease;
+  }
+  button:active {
+    transform: scale(0.95) !important;
+  }
 `;
 document.head.appendChild(styleEl);
 
@@ -529,20 +638,29 @@ function getProgressBarHtml(): string {
 
 // --- Render Functions ---
 
+let _lastPhase: GamePhase | null = null;
 function render(): void {
-  switch (currentPhase) {
-    case 'title': renderTitle(); break;
-    case 'setup': renderSetup(); break;
-    case 'roundIntro': renderRoundIntro(); break;
-    case 'roleReveal': renderRoleReveal(); break;
-    case 'passPhone': renderPassPhone(); break;
-    case 'miniGame': renderMiniGame(); break;
-    case 'discussion': renderDiscussion(); break;
-    case 'voting': renderVoting(); break;
-    case 'votePassPhone': renderVotePassPhone(); break;
-    case 'results': renderResults(); break;
-    case 'finalResults': renderFinalResults(); break;
+  const doRender = () => {
+    switch (currentPhase) {
+      case 'title': renderTitle(); break;
+      case 'setup': renderSetup(); break;
+      case 'roundIntro': renderRoundIntro(); break;
+      case 'roleReveal': renderRoleReveal(); break;
+      case 'passPhone': renderPassPhone(); break;
+      case 'miniGame': renderMiniGame(); break;
+      case 'discussion': renderDiscussion(); break;
+      case 'voting': renderVoting(); break;
+      case 'votePassPhone': renderVotePassPhone(); break;
+      case 'results': renderResults(); break;
+      case 'finalResults': renderFinalResults(); break;
+    }
+  };
+  if (_lastPhase !== null && _lastPhase !== currentPhase) {
+    fadeTransition(doRender);
+  } else {
+    doRender();
   }
+  _lastPhase = currentPhase;
 }
 
 function renderTitle(): void {
@@ -828,6 +946,9 @@ function renderRoleReveal(): void {
       </button>
     </div>
   `;
+
+  // Play reveal sound when role card appears
+  playRevealSound();
 
   document.getElementById('btn-confirm')!.addEventListener('click', () => {
     currentPlayerIndex++;
@@ -1187,6 +1308,7 @@ function renderVoting(): void {
 
   document.querySelectorAll('.vote-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      playPopSound();
       const idx = parseInt((btn as HTMLElement).dataset.idx!);
       (btn as HTMLElement).classList.add('vote-selected');
       (btn as HTMLElement).style.background = PLAYER_COLORS[idx % PLAYER_COLORS.length] + '33';
@@ -1230,6 +1352,9 @@ function renderResults(): void {
       p.score += 5;
     }
   });
+
+  // Play round result sound
+  if (caught) { playWinJingle(); } else { playLoseBuzzer(); }
 
   roundHistory.push({
     round: currentRound,
@@ -1300,6 +1425,9 @@ function renderFinalResults(): void {
   // Stats
   const totalCaught = roundHistory.filter(r => r.caught).length;
   const totalBlufferWin = roundHistory.filter(r => !r.caught).length;
+
+  // Play confetti burst sound for final winner
+  playConfettiBurst();
 
   // Save leaderboard entries for all players
   sorted.forEach((p, rank) => {

@@ -12,10 +12,11 @@ export class Enemy {
   baseSpeed: number;
   isDead: boolean = false;
   reachedVillage: boolean = false;
+  wasHit: boolean = false;
 
   private path: { x: number; y: number }[];
   private pathIndex: number = 0;
-  private sprite: Phaser.GameObjects.Container;
+  sprite: Phaser.GameObjects.Container;
   private healthBar: Phaser.GameObjects.Rectangle;
   private healthBarBg: Phaser.GameObjects.Rectangle;
   private slowTimer: number = 0;
@@ -156,6 +157,7 @@ export class Enemy {
   takeDamage(damage: number): void {
     if (this.isDead) return;
     this.health -= damage;
+    this.wasHit = true;
 
     // 체력바 업데이트
     const ratio = Math.max(0, this.health / this.maxHealth);

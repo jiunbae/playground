@@ -64,7 +64,7 @@ export class Game {
     this.ui.on('resume', () => this.resume());
     this.ui.on('selectTool', (id) => {
       this.toolManager.selectTool(id);
-      this.audio.playUIClick();
+      this.audio.playToolSwitch();
     });
 
     // Chain reaction callbacks
@@ -83,6 +83,7 @@ export class Game {
       if (count >= 3 && !this.slowMoTriggered) {
         this.physics.setSlowMotion(0.3, 1500);
         this.slowMoTriggered = true;
+        this.audio.playSlowMoWhoosh();
       }
     };
 
@@ -120,6 +121,10 @@ export class Game {
         this.audio.playDestroy(mat, Math.min(speed / 10, 1));
         this.audio.vibrateImpact(Math.min(speed / 10, 1));
         this.renderer.shakeCamera(Math.min(speed * 0.3, 3));
+      } else if (speed > 1.5) {
+        // Lighter crack sound for smaller impacts - pitched by material
+        const mat = blockA?.material?.id || blockB?.material?.id || 'wood';
+        this.audio.playBlockCrack(mat, Math.min(speed / 8, 0.6));
       }
     };
   }
@@ -284,6 +289,7 @@ export class Game {
 
     // Auto slow-mo for charged explosion
     this.physics.setSlowMotion(0.2, 2000);
+    this.audio.playSlowMoWhoosh();
   }
 
   _onBlockDestroyed(block) {
@@ -640,11 +646,13 @@ export class Game {
       this.save.updateStats(result.destroyedBlocks || 0, result.chainCount, result.perfectChain);
     }
 
-    // Play completion sounds
+    // Play completion sounds - enhanced with level complete arpeggio
     if (result.perfectChain) {
       this.audio.playPerfectChain();
+      this.audio.playLevelComplete();
     } else if (result.stars > 0) {
       this.audio.playStar();
+      this.audio.playLevelComplete();
     }
 
     // Show results after brief delay

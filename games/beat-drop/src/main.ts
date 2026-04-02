@@ -181,6 +181,15 @@ interface GameState {
   grade: Grade;
   countdownValue: number;
   countdownStartTime: number;
+  // Micro-interaction state
+  screenShake: number;        // shake intensity (0-1)
+  screenShakeX: number;
+  screenShakeY: number;
+  missFlash: number;          // red vignette flash (0-1)
+  comboMilestone: number;     // timer for combo milestone effect (0 = off)
+  comboMilestoneValue: number;
+  resultsTimer: number;       // timer for results animation
+  resultsGradeScale: number;
 }
 
 interface Particle {
@@ -351,6 +360,59 @@ function playHitSound(judgment: Judgment) {
   gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
   osc.start();
   osc.stop(audioCtx.currentTime + 0.1);
+}
+
+function playComboMilestoneSound(combo: number) {
+  if (!audioCtx || !masterGain) return;
+  const baseFreq = combo >= 100 ? 880 : combo >= 50 ? 660 : 523;
+  const notes = [0, 4, 7, 12];
+  notes.forEach((semitone, i) => {
+    const osc = audioCtx!.createOscillator();
+    const gain = audioCtx!.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = baseFreq * Math.pow(2, semitone / 12);
+    const t = audioCtx!.currentTime + i * 0.08;
+    gain.gain.setValueAtTime(0.15, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    osc.connect(gain).connect(masterGain!);
+    osc.start(t);
+    osc.stop(t + 0.15);
+  });
+}
+
+function playMissSound() {
+  if (!audioCtx || !masterGain) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.value = 120;
+  gain.gain.setValueAtTime(0.06, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+  osc.connect(gain).connect(masterGain);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.08);
+}
+
+function playGradeRevealSound(grade: Grade) {
+  if (!audioCtx || !masterGain) return;
+  const freqs: Record<Grade, number[]> = {
+    S: [523, 659, 784, 1047],
+    A: [440, 554, 659],
+    B: [392, 494, 587],
+    C: [330, 349, 392],
+  };
+  freqs[grade].forEach((freq, i) => {
+    const osc = audioCtx!.createOscillator();
+    const gain = audioCtx!.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const t = audioCtx!.currentTime + i * 0.12;
+    gain.gain.setValueAtTime(0.12, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    osc.connect(gain).connect(masterGain!);
+    osc.start(t);
+    osc.stop(t + 0.3);
+  });
 }
 
 function playSong(song: Song): void {
@@ -544,6 +606,15 @@ const state: GameState = {
   grade: 'C',
   countdownValue: 3,
   countdownStartTime: 0,
+  // Micro-interaction state
+  screenShake: 0,
+  screenShakeX: 0,
+  screenShakeY: 0,
+  missFlash: 0,
+  comboMilestone: 0,
+  comboMilestoneValue: 0,
+  resultsTimer: 0,
+  resultsGradeScale: 0,
 };
 
 // --- UI Buttons ---
@@ -827,6 +898,14 @@ function startGame() {
   state.particles = [];
   state.bgStars = [];
   state.hitRings = [];
+  state.screenShake = 0;
+  state.screenShakeX = 0;
+  state.screenShakeY = 0;
+  state.missFlash = 0;
+  state.comboMilestone = 0;
+  state.comboMilestoneValue = 0;
+  state.resultsTimer = 0;
+  state.resultsGradeScale = 0;
   // Pre-populate background stars
   for (let i = 0; i < 60; i++) {
     state.bgStars.push({
@@ -895,9 +974,22 @@ function judgeHit(lane: number) {
   if (judgment === 'Miss') {
     state.combo = 0;
     state.life = Math.max(0, state.life - 5);
+    state.missFlash = 1;
   } else {
     state.combo++;
     if (state.combo > state.maxCombo) state.maxCombo = state.combo;
+
+    // Screen shake on Perfect/Great
+    if (judgment === 'Perfect' || judgment === 'Great') {
+      state.screenShake = judgment === 'Perfect' ? 0.8 : 0.4;
+    }
+
+    // Combo milestone sound + effect at 25, 50, 100
+    if (state.combo === 25 || state.combo === 50 || state.combo === 100) {
+      state.comboMilestone = 1.5;
+      state.comboMilestoneValue = state.combo;
+      playComboMilestoneSound(state.combo);
+    }
 
     const comboBonus = Math.floor(state.combo / 10) * 10;
     state.score += SCORE_VALUES[judgment] + comboBonus;
@@ -1059,6 +1151,7 @@ function updatePlaying(dt: number) {
       state.life = Math.max(0, state.life - 3);
       state.lastJudgment = 'Miss';
       state.lastJudgmentTime = state.currentTime;
+      state.missFlash = 0.6;
     }
   }
 
@@ -1069,6 +1162,22 @@ function updatePlaying(dt: number) {
 
   // Update bg pulse
   state.bgPulse = Math.max(0, state.bgPulse - dt * 2);
+
+  // Update screen shake
+  if (state.screenShake > 0) {
+    state.screenShake = Math.max(0, state.screenShake - dt * 6);
+    state.screenShakeX = (Math.random() - 0.5) * state.screenShake * 8;
+    state.screenShakeY = (Math.random() - 0.5) * state.screenShake * 8;
+  } else {
+    state.screenShakeX = 0;
+    state.screenShakeY = 0;
+  }
+
+  // Update miss flash
+  state.missFlash = Math.max(0, state.missFlash - dt * 4);
+
+  // Update combo milestone
+  state.comboMilestone = Math.max(0, state.comboMilestone - dt);
 
   // Beat pulse
   const beatDuration = 60 / song.bpm;
@@ -1110,6 +1219,12 @@ function updatePlaying(dt: number) {
 
 function drawPlaying() {
   currentButtons = [];
+
+  // Apply screen shake
+  ctx.save();
+  if (state.screenShake > 0) {
+    ctx.translate(state.screenShakeX, state.screenShakeY);
+  }
 
   const song = SONGS[state.selectedSong];
   const hitY = H * HIT_LINE_OFFSET;
@@ -1376,6 +1491,37 @@ function drawPlaying() {
   ctx.fillRect(0, H - 4, W, 4);
   ctx.fillStyle = song.color;
   ctx.fillRect(0, H - 4, W * progress, 4);
+
+  // Miss vignette (red overlay from edges)
+  if (state.missFlash > 0) {
+    const vigMiss = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.7);
+    vigMiss.addColorStop(0, 'rgba(255,0,0,0)');
+    vigMiss.addColorStop(1, `rgba(255,0,0,${state.missFlash * 0.35})`);
+    ctx.fillStyle = vigMiss;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Combo milestone overlay
+  if (state.comboMilestone > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, state.comboMilestone);
+    const milestoneScale = 1 + (1.5 - state.comboMilestone) * 0.3;
+    ctx.translate(W / 2, H * 0.5);
+    ctx.scale(milestoneScale, milestoneScale);
+    ctx.fillStyle = '#ffdd33';
+    ctx.shadowColor = '#ffdd33';
+    ctx.shadowBlur = 25;
+    ctx.font = `bold ${Math.min(W * 0.12, 60)}px 'Segoe UI', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${state.comboMilestoneValue} COMBO!`, 0, 0);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  // Restore screen shake transform
+  ctx.restore();
 }
 
 // --- End Game ---
@@ -1383,6 +1529,8 @@ function drawPlaying() {
 function endGame() {
   state.isPlaying = false;
   state.scene = 'results';
+  state.resultsTimer = 0;
+  state.resultsGradeScale = 0;
   stopAllAudio();
 
   // Tally judgments from notes
@@ -1470,14 +1618,33 @@ function drawResults() {
   ctx.font = `${Math.min(W * 0.035, 15)}px 'Segoe UI', sans-serif`;
   ctx.fillText(`${state.difficulty}  |  ${song.bpm} BPM`, W / 2, H * 0.17);
 
-  // Grade
+  // Grade with dramatic reveal animation
+  state.resultsTimer += 1 / 60;
   const gradeColors: Record<Grade, string> = { S: '#ffdd33', A: '#33ddff', B: '#33dd66', C: '#ff6633' };
-  ctx.fillStyle = gradeColors[state.grade];
-  ctx.shadowColor = gradeColors[state.grade];
-  ctx.shadowBlur = 30;
-  ctx.font = `bold ${Math.min(W * 0.25, 120)}px 'Segoe UI', sans-serif`;
-  ctx.fillText(state.grade, W / 2, H * 0.32);
-  ctx.shadowBlur = 0;
+
+  if (state.resultsTimer > 0.5) {
+    // Trigger sound once
+    if (state.resultsGradeScale === 0) {
+      playGradeRevealSound(state.grade);
+    }
+    // Animate scale: overshoot then settle
+    const t = Math.min(1, (state.resultsTimer - 0.5) / 0.4);
+    const eased = t < 0.6 ? (t / 0.6) * 1.3 : 1.3 - (t - 0.6) / 0.4 * 0.3;
+    state.resultsGradeScale = eased;
+
+    ctx.save();
+    ctx.translate(W / 2, H * 0.32);
+    ctx.scale(state.resultsGradeScale, state.resultsGradeScale);
+    ctx.fillStyle = gradeColors[state.grade];
+    ctx.shadowColor = gradeColors[state.grade];
+    ctx.shadowBlur = 30;
+    ctx.font = `bold ${Math.min(W * 0.25, 120)}px 'Segoe UI', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(state.grade, 0, 0);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
 
   // Score
   ctx.fillStyle = '#ffffff';

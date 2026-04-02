@@ -12,6 +12,7 @@ export class Tower {
   rangeCircle: Phaser.GameObjects.Arc | Phaser.GameObjects.Graphics;
   lastAttackTime: number = 0;
   goldTimer: number = 0;
+  justFired: boolean = false;
 
   constructor(scene: Phaser.Scene, def: TowerDef, gridX: number, gridY: number) {
     this.scene = scene;
@@ -387,6 +388,7 @@ export class Tower {
 
     if (target) {
       this.lastAttackTime = time;
+      this.justFired = true;
       this.attack(target, enemies);
       return target;
     }

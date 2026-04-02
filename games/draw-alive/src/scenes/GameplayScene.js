@@ -4,6 +4,77 @@ import { PhysicsConverter } from '../systems/PhysicsConverter.js';
 import { StageManager } from '../systems/StageManager.js';
 import { GameUI } from '../ui/GameUI.js';
 
+// --- DrawAliveSFX: Web Audio sound effects ---
+class DrawAliveSFX {
+  constructor() {
+    this.ctx = null;
+  }
+
+  init() {
+    if (this.ctx) return;
+    try { this.ctx = new AudioContext(); } catch { /* no audio */ }
+  }
+
+  _ensureCtx() {
+    if (!this.ctx) return null;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    return this.ctx;
+  }
+
+  playWhoosh() {
+    const ctx = this._ensureCtx();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(400, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.25);
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.25);
+  }
+
+  playStarCollect() {
+    const ctx = this._ensureCtx();
+    if (!ctx) return;
+    // High-freq sparkle burst
+    [1800, 2400, 3000].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + i * 0.05;
+      gain.gain.setValueAtTime(0.08, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.1);
+    });
+  }
+
+  playVictoryChime() {
+    const ctx = this._ensureCtx();
+    if (!ctx) return;
+    const notes = [523, 659, 784, 1047];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + i * 0.1;
+      gain.gain.setValueAtTime(0.1, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.25);
+    });
+  }
+}
+
+const drawAliveSFX = new DrawAliveSFX();
+
 export class GameplayScene extends Phaser.Scene {
   constructor() {
     super({ key: 'GameplayScene' });
@@ -34,6 +105,14 @@ export class GameplayScene extends Phaser.Scene {
     this.bodyGraphics = null;
     this._cleared = false;
     this._starShineAngle = 0;
+
+    // Init audio on first interaction
+    this.input.once('pointerdown', () => drawAliveSFX.init());
+
+    // Drawing particle system
+    this._drawingParticles = [];
+    this._drawingParticleGraphics = null;
+    this._lastParticlePos = { x: 0, y: 0 };
 
     // Draw environmental stage background decorations
     this._drawStageBackground();
@@ -70,6 +149,38 @@ export class GameplayScene extends Phaser.Scene {
     this.gameUI.onSimulate = () => this._toggleSimulation();
     this.gameUI.onUndo = () => this.drawingSystem.undo();
     this.gameUI.onBack = () => this._goBack();
+
+    // Drawing particle graphics layer
+    this._drawingParticleGraphics = this.add.graphics().setDepth(15);
+
+    // Track drawing position for particle emission
+    this.input.on('pointermove', (pointer) => {
+      if (!pointer.isDown || this.isSimulating || !this.drawingSystem?.enabled) return;
+      const dx = pointer.x - this._lastParticlePos.x;
+      const dy = pointer.y - this._lastParticlePos.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 20) {
+        this._lastParticlePos = { x: pointer.x, y: pointer.y };
+        const colors = [0xFF6B6B, 0x4ECDC4, 0xFFC312, 0xA8E6CF, 0x6C5CE7];
+        this._drawingParticles.push({
+          x: pointer.x + (Math.random() - 0.5) * 8,
+          y: pointer.y + (Math.random() - 0.5) * 8,
+          size: 2 + Math.random() * 3,
+          life: 1,
+          color: colors[Math.floor(Math.random() * colors.length)],
+        });
+      }
+    });
+    this.input.on('pointerdown', (pointer) => {
+      this._lastParticlePos = { x: pointer.x, y: pointer.y };
+    });
+
+    // Particle update timer
+    this.time.addEvent({
+      delay: 16,
+      loop: true,
+      callback: () => this._updateDrawingParticles(),
+    });
 
     // Ink gauge updates
     this.drawingSystem.onInkChanged = (used, limit) => {
@@ -357,6 +468,10 @@ export class GameplayScene extends Phaser.Scene {
         star.collected = true;
         this.collectedStars++;
 
+        // Star collect sound + particle explosion
+        drawAliveSFX.playStarCollect();
+        this._spawnStarExplosion(star.x, star.y);
+
         // Collect animation
         this.tweens.add({
           targets: star.graphics,
@@ -411,6 +526,10 @@ export class GameplayScene extends Phaser.Scene {
   _startSimulation() {
     const strokes = this.drawingSystem.getStrokes();
     if (strokes.length === 0) return;
+
+    // Whoosh sound + camera shake
+    drawAliveSFX.playWhoosh();
+    this.cameras.main.shake(200, 0.008);
 
     this.isSimulating = true;
     this.simulationStartTime = Date.now();
@@ -662,6 +781,12 @@ export class GameplayScene extends Phaser.Scene {
   _showSuccessEffect() {
     const { width, height } = this.scale;
 
+    // Victory chime
+    drawAliveSFX.playVictoryChime();
+
+    // Confetti rain (30 colorful dots from top)
+    this._spawnConfetti();
+
     // Particle-like celebration
     const g = this.add.graphics().setDepth(200);
     const particles = [];
@@ -823,6 +948,95 @@ export class GameplayScene extends Phaser.Scene {
         this._starSparkleGraphics.strokePath();
       }
     }
+  }
+
+  _updateDrawingParticles() {
+    if (!this._drawingParticleGraphics) return;
+    this._drawingParticleGraphics.clear();
+    for (const p of this._drawingParticles) {
+      p.life -= 0.03;
+      if (p.life > 0) {
+        this._drawingParticleGraphics.fillStyle(p.color, p.life * 0.8);
+        this._drawingParticleGraphics.fillCircle(p.x, p.y, p.size * p.life);
+      }
+    }
+    this._drawingParticles = this._drawingParticles.filter(p => p.life > 0);
+  }
+
+  _spawnStarExplosion(cx, cy) {
+    const g = this.add.graphics().setDepth(100);
+    const particles = [];
+    const colors = [0xFFC312, 0xFFF176, 0xFFFFFF, 0xFFD700];
+    for (let i = 0; i < 15; i++) {
+      const angle = (Math.PI * 2 * i) / 15 + Math.random() * 0.3;
+      const speed = 80 + Math.random() * 120;
+      particles.push({
+        x: cx, y: cy,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        size: 2 + Math.random() * 4,
+        life: 1,
+        color: colors[Math.floor(Math.random() * colors.length)],
+      });
+    }
+    const timer = this.time.addEvent({
+      delay: 16, loop: true,
+      callback: () => {
+        g.clear();
+        let alive = false;
+        for (const p of particles) {
+          p.x += p.vx * 0.016;
+          p.y += p.vy * 0.016;
+          p.vy += 200 * 0.016;
+          p.life -= 0.04;
+          if (p.life > 0) {
+            alive = true;
+            g.fillStyle(p.color, p.life);
+            g.fillCircle(p.x, p.y, p.size * p.life);
+          }
+        }
+        if (!alive) { timer.destroy(); g.destroy(); }
+      },
+    });
+  }
+
+  _spawnConfetti() {
+    const { width, height } = this.scale;
+    const g = this.add.graphics().setDepth(199);
+    const confetti = [];
+    const colors = [0xFFC312, 0xFF6B6B, 0x4ECDC4, 0xA8E6CF, 0x6C5CE7, 0xFF9FF3, 0x48DBFB];
+    for (let i = 0; i < 30; i++) {
+      confetti.push({
+        x: Math.random() * width,
+        y: -10 - Math.random() * 100,
+        vx: (Math.random() - 0.5) * 60,
+        vy: 80 + Math.random() * 120,
+        size: 3 + Math.random() * 5,
+        life: 1,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        wobble: Math.random() * Math.PI * 2,
+      });
+    }
+    const timer = this.time.addEvent({
+      delay: 16, loop: true,
+      callback: () => {
+        g.clear();
+        let alive = false;
+        for (const p of confetti) {
+          p.x += p.vx * 0.016 + Math.sin(p.wobble) * 1.5;
+          p.y += p.vy * 0.016;
+          p.wobble += 0.1;
+          if (p.y > height + 20) p.life -= 0.05;
+          else p.life -= 0.005;
+          if (p.life > 0) {
+            alive = true;
+            g.fillStyle(p.color, Math.min(1, p.life));
+            g.fillCircle(p.x, p.y, p.size);
+          }
+        }
+        if (!alive) { timer.destroy(); g.destroy(); }
+      },
+    });
   }
 
   _goBack() {

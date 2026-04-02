@@ -409,6 +409,79 @@ function closeMosaicLeaderboard(): void {
   }
 }
 
+// --- Web Audio SFX ---
+let mosaicAudioCtx: AudioContext | null = null;
+function getMosaicAudio(): AudioContext {
+  if (!mosaicAudioCtx) mosaicAudioCtx = new AudioContext();
+  return mosaicAudioCtx;
+}
+
+function playPlaceClick(hue: number): void {
+  try {
+    const ctx = getMosaicAudio();
+    const now = ctx.currentTime;
+    // Map hue (0-360) to frequency (400-900)
+    const freq = 400 + (hue / 360) * 500;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine'; osc.frequency.value = freq;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.15, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    osc.connect(g); g.connect(ctx.destination);
+    osc.start(now); osc.stop(now + 0.1);
+  } catch {}
+}
+
+function playSpinSound(): void {
+  try {
+    const ctx = getMosaicAudio();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.08);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.12, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    osc.connect(g); g.connect(ctx.destination);
+    osc.start(now); osc.stop(now + 0.08);
+  } catch {}
+}
+
+function playCompletionShimmer(): void {
+  try {
+    const ctx = getMosaicAudio();
+    const now = ctx.currentTime;
+    [523, 659, 784, 988, 1175, 1319].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine'; osc.frequency.value = freq;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, now + i * 0.12);
+      g.gain.linearRampToValueAtTime(0.1, now + i * 0.12 + 0.05);
+      g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.4);
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(now + i * 0.12); osc.stop(now + i * 0.12 + 0.4);
+    });
+  } catch {}
+}
+
+function playMilestoneSound(): void {
+  try {
+    const ctx = getMosaicAudio();
+    const now = ctx.currentTime;
+    [880, 1100, 1320].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine'; osc.frequency.value = freq;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, now + i * 0.08);
+      g.gain.linearRampToValueAtTime(0.15, now + i * 0.08 + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.25);
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(now + i * 0.08); osc.stop(now + i * 0.08 + 0.25);
+    });
+  } catch {}
+}
+
 // --- Main Game Class ---
 
 class Game {
@@ -495,6 +568,9 @@ class Game {
   longPressTimer: ReturnType<typeof setTimeout> | null = null;
   longPressPiece: PieceData | null = null;
   longPressMoved = false;
+
+  // Harmony milestone tracking
+  lastMilestone = 0;
 
   // Gallery touch scroll state
   galleryTouchStartY = 0;
@@ -608,6 +684,7 @@ class Game {
     this.shakeAmount = 0;
     this.trayScrollX = 0;
     this.trayVelocity = 0;
+    this.lastMilestone = 0;
 
     const seed = Date.now();
     this.pieces = generatePuzzle(difficulty, seed);
@@ -720,12 +797,31 @@ class Game {
       piece.scale = 1.2;
       this.shakeAmount = 3;
 
+      // Play placement sound based on piece hue
+      playPlaceClick(piece.color.h);
+
       // Particles
       for (let i = 0; i < 8; i++) {
         this.particles.push(new Particle(piece.x, piece.y, piece.color));
       }
 
       this.updateScore();
+
+      // Harmony milestone check (50%, 75%, 90%)
+      const scorePercent = this.aestheticScore * 100;
+      const milestones = [50, 75, 90];
+      for (const m of milestones) {
+        if (scorePercent >= m && this.lastMilestone < m) {
+          this.lastMilestone = m;
+          playMilestoneSound();
+          // Celebratory particle burst
+          for (let pi = 0; pi < 20; pi++) {
+            const palette = STYLE_PALETTES[Math.floor(Math.random() * STYLE_PALETTES.length)];
+            const col = palette[Math.floor(Math.random() * palette.length)];
+            this.particles.push(new Particle(piece.x + (Math.random() - 0.5) * 100, piece.y + (Math.random() - 0.5) * 100, col, 1.5));
+          }
+        }
+      }
 
       // Speed mode combo
       if (this.gameMode === 'speed') {
@@ -747,6 +843,9 @@ class Game {
   onPuzzleComplete() {
     this.completionTime = performance.now();
     this.elapsedTime = (performance.now() - this.startTime) / 1000;
+
+    // Play completion shimmer sound
+    playCompletionShimmer();
 
     // Big particle burst
     const cx = this.gridOffsetX + this.gridSize * this.cellSize / 2;
@@ -853,6 +952,7 @@ class Game {
     if (!piece.placed && DIFFICULTY_CONFIG[this.difficulty].rotationEnabled) {
       piece.rotation = (piece.rotation + 90) % 360;
       piece.scale = 1.15;
+      playSpinSound();
     }
   }
 
@@ -1421,11 +1521,11 @@ class Game {
     if (this.draggingPiece) {
       ctx.save();
 
-      // Large shadow under dragged piece
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+      // Larger drag shadow (8px down, 50% opacity)
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
       ctx.beginPath();
-      ctx.ellipse(this.draggingPiece.x + 3, this.draggingPiece.y + 8,
-        this.cellSize * 0.45, this.cellSize * 0.2, 0, 0, Math.PI * 2);
+      ctx.ellipse(this.draggingPiece.x + 4, this.draggingPiece.y + 8,
+        this.cellSize * 0.5, this.cellSize * 0.22, 0, 0, Math.PI * 2);
       ctx.fill();
 
       // Glow highlight around dragged piece

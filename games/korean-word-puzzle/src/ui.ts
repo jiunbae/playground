@@ -12,6 +12,129 @@ import { loadStats, initCloudSave, cloudSaveStats, cloudSyncOnLogin } from './st
 import type { GameStats } from './stats';
 import { PlaygroundSDK } from '@playground/sdk';
 
+// --- Sound Manager (Web Audio API) ---
+class SoundManager {
+  private ctx: AudioContext | null = null;
+  private initialized = false;
+
+  init(): void {
+    if (this.initialized) return;
+    try {
+      this.ctx = new AudioContext();
+      this.initialized = true;
+    } catch { /* Web Audio not available */ }
+  }
+
+  private ensureCtx(): AudioContext | null {
+    if (!this.ctx) return null;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    return this.ctx;
+  }
+
+  playTick(): void {
+    const ctx = this.ensureCtx();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 1800;
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.02);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.02);
+  }
+
+  playSubmit(): void {
+    const ctx = this.ensureCtx();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 50;
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.1);
+  }
+
+  playReveal(status: string, position: number): void {
+    const ctx = this.ensureCtx();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    if (status === 'correct') {
+      osc.frequency.value = 523 + position * 80;
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    } else if (status === 'present' || status === 'misplaced') {
+      osc.frequency.value = 350 + position * 40;
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    } else {
+      osc.frequency.value = 200;
+      gain.gain.setValueAtTime(0.04, ctx.currentTime);
+    }
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.15);
+  }
+
+  playWin(): void {
+    const ctx = this.ensureCtx();
+    if (!ctx) return;
+    const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + i * 0.12;
+      gain.gain.setValueAtTime(0.12, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.2);
+    });
+  }
+
+  playLose(): void {
+    const ctx = this.ensureCtx();
+    if (!ctx) return;
+    const notes = [493.88, 466.16, 415.30, 349.23]; // B4, Bb4, Ab4, F4
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + i * 0.15;
+      gain.gain.setValueAtTime(0.10, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.25);
+    });
+  }
+
+  playDuelReveal(): void {
+    const ctx = this.ensureCtx();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(300, ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.3);
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.4);
+  }
+}
+
+const soundManager = new SoundManager();
+
 // --- SDK Init ---
 let sdk: PlaygroundSDK | null = null;
 try {
@@ -137,6 +260,12 @@ export class UI {
     // Check if game just ended and we haven't submitted yet
     if (this.game.state.gameOver && !this.scoreSubmitted) {
       this.scoreSubmitted = true;
+      // Play win/lose sound
+      if (this.game.state.won) {
+        setTimeout(() => soundManager.playWin(), 300 * WORD_LENGTH + 200);
+      } else {
+        setTimeout(() => soundManager.playLose(), 300 * WORD_LENGTH + 200);
+      }
       if (!this.game.state.isDuel) {
         this.submitScore();
         // Cloud save stats on game end
@@ -225,6 +354,17 @@ export class UI {
 
     // Physical keyboard
     document.addEventListener('keydown', (e) => this.handleKeydown(e));
+
+    // Init audio on first interaction (mobile requirement)
+    const initAudioOnce = () => {
+      soundManager.init();
+      document.removeEventListener('click', initAudioOnce);
+      document.removeEventListener('keydown', initAudioOnce);
+      document.removeEventListener('touchstart', initAudioOnce);
+    };
+    document.addEventListener('click', initAudioOnce);
+    document.addEventListener('keydown', initAudioOnce);
+    document.addEventListener('touchstart', initAudioOnce);
 
     // First-time user: auto-show help if no stats exist
     const stats = loadStats();
@@ -358,10 +498,13 @@ export class UI {
 
   private handleKey(key: string): void {
     if (key === 'ENTER') {
+      soundManager.playSubmit();
       this.game.submit();
     } else if (key === 'BACK') {
+      soundManager.playTick();
       this.game.backspace();
     } else {
+      soundManager.playTick();
       this.game.inputJamo(key);
     }
   }
@@ -501,6 +644,14 @@ export class UI {
       // Flip animation delay
       cell.style.animationDelay = `${col * 300}ms`;
       cell.classList.add('flip');
+
+      // Play reveal sound per syllable (best status of its jamo)
+      const bestStatus = syl.cho === JamoStatus.Correct || syl.jung === JamoStatus.Correct || syl.jong === JamoStatus.Correct
+        ? 'correct'
+        : syl.cho === JamoStatus.Present || syl.jung === JamoStatus.Present || syl.jong === JamoStatus.Present
+          ? 'present'
+          : 'absent';
+      setTimeout(() => soundManager.playReveal(bestStatus, col), col * 300);
     }
   }
 
@@ -818,6 +969,7 @@ export class UI {
 
   private showDuelComparison(): void {
     if (!this.pendingDuel) return;
+    soundManager.playDuelReveal();
 
     const opponent = this.pendingDuel;
     const myGuesses = this.game.state.guesses.length;

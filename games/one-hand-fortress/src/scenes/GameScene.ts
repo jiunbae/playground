@@ -11,6 +11,56 @@ import { Enemy } from '../entities/Enemy';
 
 type GamePhase = 'prepare' | 'wave' | 'between_waves' | 'victory' | 'defeat';
 
+// --- Web Audio SFX for One Hand Fortress ---
+let ohfAudioCtx: AudioContext | null = null;
+function getOhfAudio(): AudioContext {
+  if (!ohfAudioCtx) ohfAudioCtx = new AudioContext();
+  return ohfAudioCtx;
+}
+
+function playThudSound(): void {
+  try {
+    const ctx = getOhfAudio();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(120, now);
+    osc.frequency.exponentialRampToValueAtTime(40, now + 0.15);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.3, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    osc.connect(g); g.connect(ctx.destination);
+    osc.start(now); osc.stop(now + 0.15);
+    // Add noise burst
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.15, now);
+    ng.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    src.connect(ng); ng.connect(ctx.destination);
+    src.start(now);
+  } catch {}
+}
+
+function playWaveFanfare(): void {
+  try {
+    const ctx = getOhfAudio();
+    const now = ctx.currentTime;
+    [659, 784, 988, 1175].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine'; osc.frequency.value = freq;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, now + i * 0.1);
+      g.gain.linearRampToValueAtTime(0.2, now + i * 0.1 + 0.05);
+      g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.3);
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(now + i * 0.1); osc.stop(now + i * 0.1 + 0.3);
+    });
+  } catch {}
+}
+
 export class GameScene extends Phaser.Scene {
   // 스테이지
   private stage: number = 1;
@@ -71,6 +121,17 @@ export class GameScene extends Phaser.Scene {
 
   // Weekly challenge banner
   private weeklyBanner: Phaser.GameObjects.Container | null = null;
+
+  // Ghost tower preview
+  private ghostPreview: Phaser.GameObjects.Graphics | null = null;
+  private lastPointerGridX: number = -1;
+  private lastPointerGridY: number = -1;
+
+  // Red flash overlay for village damage
+  private redFlashOverlay: Phaser.GameObjects.Rectangle | null = null;
+
+  // Previous health for HP bar flash
+  private prevVillageHealth: number = 0;
 
   // Stats tracking
   private totalEnemiesKilled: number = 0;
@@ -174,6 +235,32 @@ export class GameScene extends Phaser.Scene {
 
     // 입력 처리
     this.input.on('pointerdown', this.handleTap, this);
+
+    // Ghost tower preview
+    this.ghostPreview = this.add.graphics().setDepth(10).setAlpha(0.4);
+
+    // Red flash overlay for village damage
+    this.redFlashOverlay = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0xff0000, 0)
+      .setOrigin(0).setDepth(38);
+
+    // Track pointer for ghost preview
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (pointer.y < MAP_TOP || pointer.y > MAP_BOTTOM) {
+        this.ghostPreview?.clear();
+        this.lastPointerGridX = -1;
+        this.lastPointerGridY = -1;
+        return;
+      }
+      const gx = Math.floor(pointer.x / CELL_SIZE);
+      const gy = Math.floor((pointer.y - MAP_TOP) / CELL_SIZE);
+      if (gx !== this.lastPointerGridX || gy !== this.lastPointerGridY) {
+        this.lastPointerGridX = gx;
+        this.lastPointerGridY = gy;
+        this.updateGhostPreview(gx, gy);
+      }
+    });
+
+    this.prevVillageHealth = this.villageHealth;
 
     // 주간 챌린지 배너 표시
     if (this.mode === 'weekly') {
@@ -607,6 +694,24 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private updateGhostPreview(gx: number, gy: number): void {
+    if (!this.ghostPreview) return;
+    this.ghostPreview.clear();
+    if (gx < 0 || gx >= GRID_COLS || gy < 0 || gy >= this.mapRows) return;
+    const cell = this.mapData.grid[gy]?.[gx];
+    if (cell !== 0) return;
+    if (this.towers.find(t => t.gridX === gx && t.gridY === gy)) return;
+    const towerDef = this.availableTowers[this.selectedTowerIndex];
+    if (!towerDef) return;
+    const px = gx * CELL_SIZE + CELL_SIZE / 2;
+    const py = gy * CELL_SIZE + MAP_TOP + CELL_SIZE / 2;
+    this.ghostPreview.fillStyle(towerDef.color, 0.5);
+    this.ghostPreview.fillCircle(px, py, CELL_SIZE * 0.35);
+    // Range circle
+    this.ghostPreview.lineStyle(1, towerDef.color, 0.2);
+    this.ghostPreview.strokeCircle(px, py, towerDef.range * CELL_SIZE);
+  }
+
   private handleTap(pointer: Phaser.Input.Pointer): void {
     // UI 영역 클릭 무시
     if (pointer.y < MAP_TOP || pointer.y > MAP_BOTTOM) return;
@@ -663,6 +768,12 @@ export class GameScene extends Phaser.Scene {
 
     // 맵 셀 업데이트
     this.mapData.grid[gridY][gridX] = 4; // 배치 불가로 변경
+
+    // Placement thud sound
+    playThudSound();
+
+    // Clear ghost preview
+    this.ghostPreview?.clear();
 
     this.showFloatingText(pointer.x, pointer.y - 20, `-${towerDef.cost}`, '#ffd700');
   }
@@ -926,11 +1037,67 @@ export class GameScene extends Phaser.Scene {
         if (enemy.reachedVillage) {
           this.villageHealth--;
           this.updateHealthDisplay();
-          this.cameras.main.shake(100, 0.005);
+          // Enhanced screen shake + red flash overlay
+          this.cameras.main.shake(150, 0.008);
+          if (this.redFlashOverlay) {
+            this.redFlashOverlay.setAlpha(0.3);
+            this.tweens.add({
+              targets: this.redFlashOverlay,
+              alpha: 0,
+              duration: 300,
+            });
+          }
+
+          // HP bar flash when health decreases
+          if (this.villageHealth < this.prevVillageHealth) {
+            this.tweens.add({
+              targets: this.healthBar,
+              alpha: 0.3,
+              duration: 100,
+              yoyo: true,
+              repeat: 2,
+              onComplete: () => { if (this.healthBar) this.healthBar.setAlpha(1); },
+            });
+            this.prevVillageHealth = this.villageHealth;
+          }
 
           if (this.villageHealth <= 0) {
             this.gameOver(false);
             return;
+          }
+        }
+      }
+
+      // Tower shoot flash + enemy hit tint
+      for (const tower of this.towers) {
+        if (tower.justFired) {
+          tower.justFired = false;
+          const tpx = tower.gridX * CELL_SIZE + CELL_SIZE / 2;
+          const tpy = tower.gridY * CELL_SIZE + MAP_TOP + CELL_SIZE / 2;
+          const flash = this.add.circle(tpx, tpy, CELL_SIZE * 0.3, 0xffffff, 0.7).setDepth(15);
+          this.tweens.add({ targets: flash, alpha: 0, scale: 1.5, duration: 100, onComplete: () => flash.destroy() });
+        }
+      }
+
+      // Enemy hit red tint flash (tint all children of the container)
+      for (const enemy of this.enemies) {
+        if (enemy.wasHit) {
+          enemy.wasHit = false;
+          if (enemy.sprite) {
+            enemy.sprite.each((child: Phaser.GameObjects.GameObject) => {
+              if ('setTint' in child && typeof (child as any).setTint === 'function') {
+                (child as any).setTint(0xff0000);
+              }
+            });
+            this.time.delayedCall(100, () => {
+              if (enemy.sprite && !enemy.isDead) {
+                enemy.sprite.each((child: Phaser.GameObjects.GameObject) => {
+                  if ('clearTint' in child && typeof (child as any).clearTint === 'function') {
+                    (child as any).clearTint();
+                  }
+                });
+              }
+            });
           }
         }
       }
@@ -972,6 +1139,8 @@ export class GameScene extends Phaser.Scene {
           this.phaseText.setText(`다음 물결까지 준비하세요...`);
           this.startButton.setVisible(true);
           (this.startButton.getAt(1) as Phaser.GameObjects.Text).setText('▶ 다음 물결');
+          // Wave complete fanfare
+          playWaveFanfare();
         }
       }
     }

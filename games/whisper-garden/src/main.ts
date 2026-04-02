@@ -156,6 +156,10 @@ function addToast(message: string) {
 // Hover info for plants
 let hoveredPlantInfo: { plant: PlantInstance; screenX: number; screenY: number } | null = null;
 let mousePos = { x: 0, y: 0 };
+let completedPlantIds = new Set<number>();
+let lastSeason: string = '';
+let tooltipOpacity = 0;
+let tooltipTarget = 0;
 
 // ==================== INIT ====================
 const canvas = document.createElement('canvas');
@@ -215,6 +219,7 @@ function plantAt(gridX: number, gridY: number): void {
   garden.totalPlantsGrown++;
   garden.experience += 5;
   addToast(`\uD83C\uDF31 ${type.nameKo}\uB97C \uC2EC\uC5C8\uC2B5\uB2C8\uB2E4`);
+  if (audioEnabled) audio.playDigSound();
 }
 
 function waterAt(gridX: number, gridY: number): void {
@@ -223,6 +228,7 @@ function waterAt(gridX: number, gridY: number): void {
     plant.water = clamp(plant.water + 0.4, 0, 1);
     plant.lastWatered = gameTime;
     addToast('\uD83D\uDCA7 \uBB3C\uC744 \uC8FC\uC5C8\uC2B5\uB2C8\uB2E4');
+    if (audioEnabled) audio.playWaterDropSound();
     // Water particles
     const cellSize = Math.min(renderer.getWidth() / GRID_W, (renderer.getHeight() - 120) / GRID_H);
     const offsetX = (renderer.getWidth() - GRID_W * cellSize) / 2;
@@ -275,6 +281,28 @@ function updatePlants(dt: number): void {
     // Health
     if (plant.water < 0.1) plant.health = clamp(plant.health - dt * 0.002, 0, 1);
     else plant.health = clamp(plant.health + dt * 0.001, 0, 1);
+
+    // Growth completion sparkle + chime
+    if (plant.growth >= 1 && !completedPlantIds.has(plant.id)) {
+      completedPlantIds.add(plant.id);
+      if (audioEnabled) audio.playGrowthChime();
+      // Sparkle particles around the plant
+      const cellSize = Math.min(renderer.getWidth() / GRID_W, (renderer.getHeight() - 120) / GRID_H);
+      const offsetX = (renderer.getWidth() - GRID_W * cellSize) / 2;
+      const offsetY = renderer.getHeight() * 0.35;
+      const px = offsetX + plant.gridX * cellSize + cellSize / 2;
+      const py = offsetY + plant.gridY * cellSize + cellSize / 2;
+      for (let si = 0; si < 8; si++) {
+        particles.push({
+          x: px, y: py,
+          vx: rand(-1.5, 1.5), vy: rand(-2, -0.5),
+          life: 1, maxLife: 1.5,
+          size: rand(2, 4),
+          color: { r: 255, g: 220, b: 50, a: 0.9 },
+          type: 'sparkle' as any,
+        });
+      }
+    }
 
     // Bloom
     if (type.category === 'flower' && plant.growth > 0.7) {
@@ -576,8 +604,8 @@ function render(): void {
   renderer.drawParticles(particles);
   buttons.forEach(btn => renderer.drawButton(btn));
 
-  // --- Plant info tooltip on hover ---
-  if (hoveredPlantInfo && screen === 'garden') {
+  // --- Plant info tooltip on hover (fade in over 0.2s) ---
+  if (hoveredPlantInfo && screen === 'garden' && tooltipOpacity > 0.01) {
     const p = hoveredPlantInfo.plant;
     const type = getPlantType(p.typeId);
     if (type) {
@@ -590,12 +618,12 @@ function render(): void {
       if (ttX + ttW > W - 4) ttX = W - ttW - 4;
       if (ttY < 4) ttY = hoveredPlantInfo.screenY + 40;
 
-      renderer.drawPanel(ttX, ttY, ttW, ttH, 0.85);
-      renderer.drawText(type.nameKo, ttX + ttW / 2, ttY + 16, 13, 'white', 'center');
+      renderer.drawPanel(ttX, ttY, ttW, ttH, 0.85 * tooltipOpacity);
+      renderer.drawText(type.nameKo, ttX + ttW / 2, ttY + 16, 13, `rgba(255,255,255,${tooltipOpacity})`, 'center');
       const growthPct = Math.round(p.growth * 100);
       const waterPct = Math.round(p.water * 100);
-      renderer.drawText(`\uC131\uC7A5: ${growthPct}%`, ttX + 10, ttY + 36, 11, growthPct >= 100 ? '#4ade80' : 'rgba(255,255,255,0.7)', 'left');
-      renderer.drawText(`\uC218\uBD84: ${waterPct}%`, ttX + 10, ttY + 52, 11, waterPct < 20 ? '#ef4444' : 'rgba(255,255,255,0.7)', 'left');
+      renderer.drawText(`\uC131\uC7A5: ${growthPct}%`, ttX + 10, ttY + 36, 11, growthPct >= 100 ? `rgba(74,222,128,${tooltipOpacity})` : `rgba(255,255,255,${tooltipOpacity * 0.7})`, 'left');
+      renderer.drawText(`\uC218\uBD84: ${waterPct}%`, ttX + 10, ttY + 52, 11, waterPct < 20 ? `rgba(239,68,68,${tooltipOpacity})` : `rgba(255,255,255,${tooltipOpacity * 0.7})`, 'left');
       // Mini progress bars
       renderer.drawProgressBar(ttX + 70, ttY + 31, 80, 6, p.growth, { h: 120, s: 60, l: 50 });
       renderer.drawProgressBar(ttX + 70, ttY + 47, 80, 6, p.water, { h: 200, s: 70, l: 55 });
@@ -669,11 +697,31 @@ function gameLoop(now: number): void {
     updateWeather();
     // Periodically submit score to SDK (every 60s if score changed)
     submitGardenScore();
+
+    // Season change notification
+    const currentSeason = getSeason();
+    if (lastSeason && lastSeason !== currentSeason) {
+      const seasonNames: Record<string, string> = {
+        spring: '\uD83C\uDF38 \uBD04\uC774 \uC654\uC5B4\uC694',
+        summer: '\u2600\uFE0F \uC5EC\uB984\uC774 \uC654\uC5B4\uC694',
+        autumn: '\uD83C\uDF42 \uAC00\uC744\uC774 \uC654\uC5B4\uC694',
+        winter: '\u2744\uFE0F \uACA8\uC6B8\uC774 \uC654\uC5B4\uC694',
+      };
+      addToast(seasonNames[currentSeason] || `${currentSeason} \uACC4\uC808`);
+    }
+    lastSeason = currentSeason;
   }
   updateParticles(dt);
 
+  // Tooltip fade-in (0.2s)
+  tooltipTarget = hoveredPlantInfo ? 1 : 0;
+  tooltipOpacity += (tooltipTarget - tooltipOpacity) * Math.min(1, dt / 0.2);
+  if (tooltipOpacity < 0.01) tooltipOpacity = 0;
+
   if (audioEnabled) {
     audio.update(weather, getTimeOfDay());
+    // Shift ambient tone with time of day
+    audio.setAmbientTone(getTimeOfDay());
   }
 
   buildButtons();

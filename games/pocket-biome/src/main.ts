@@ -88,6 +88,121 @@ let extinctionWarnings: ExtinctionWarning[] = [];
 // Track previously known species for extinction detection
 let previousSpeciesSet = new Set<SpeciesType>();
 
+// --- BiomeSFX: Web Audio sound effects ---
+class BiomeSFX {
+  private ctx: AudioContext | null = null;
+  init(): void {
+    if (this.ctx) return;
+    try { this.ctx = new AudioContext(); } catch { /* no audio */ }
+  }
+  private ensureCtx(): AudioContext | null {
+    if (!this.ctx) return null;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    return this.ctx;
+  }
+  playPop(): void {
+    const ctx = this.ensureCtx();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.1);
+  }
+  playDeathTone(): void {
+    const ctx = this.ensureCtx();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 220;
+    gain.gain.setValueAtTime(0.06, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.5);
+  }
+  playDiscovery(): void {
+    const ctx = this.ensureCtx();
+    if (!ctx) return;
+    [880, 1108, 1318].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + i * 0.08;
+      gain.gain.setValueAtTime(0.08, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.15);
+    });
+  }
+  playClick(): void {
+    const ctx = this.ensureCtx();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 1200;
+    gain.gain.setValueAtTime(0.06, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.03);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.03);
+  }
+}
+const biomeSFX = new BiomeSFX();
+
+// --- Birth particles ---
+interface BirthParticle {
+  x: number; y: number;
+  vx: number; vy: number;
+  life: number; color: string; size: number;
+}
+let birthParticles: BirthParticle[] = [];
+
+function spawnBirthParticles(wx: number, wy: number) {
+  const colors = ['#f9a8d4', '#fbcfe8', '#fff', '#fdf2f8', '#fce7f3'];
+  for (let i = 0; i < 10; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 30 + Math.random() * 50;
+    birthParticles.push({
+      x: wx, y: wy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 1,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      size: 2 + Math.random() * 3,
+    });
+  }
+}
+
+// --- Dying creatures (fade-out) ---
+interface DyingCreature {
+  x: number; y: number;
+  species: SpeciesType;
+  alpha: number;
+  vel: { x: number; y: number };
+  size: number;
+}
+let dyingCreatures: DyingCreature[] = [];
+
+// --- Discovery popup queue ---
+interface DiscoveryPopup {
+  title: string;
+  icon: string;
+  color: string;
+  timer: number;
+  slideX: number; // current x offset (slides in from right)
+}
+let discoveryPopups: DiscoveryPopup[] = [];
+
 // ==================== SEEDED RNG ====================
 let rngState = Date.now();
 function rng(): number {
@@ -117,6 +232,9 @@ function addDiscovery(id: string, title: string, desc: string, cat: Discovery['c
   discoverySet.add(id);
   discoveries.unshift({ id, title, description: desc, day: getCurrentDay(), category: cat, icon, color });
   addJournal(`\uD83D\uDD2C \uc0c8 \ubc1c\uacac: ${title}`);
+  // Discovery popup notification + chime
+  biomeSFX.playDiscovery();
+  discoveryPopups.push({ title, icon, color, timer: 3.5, slideX: 250 });
 }
 
 function addFloatingNotification(text: string, worldX: number, worldY: number, color: string = '#fff') {
@@ -344,6 +462,34 @@ function update(dt: number) {
   });
   extinctionWarnings = extinctionWarnings.filter(w => w.timer > 0);
 
+  // Update birth particles
+  birthParticles.forEach(p => {
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.life -= dt * 2;
+  });
+  birthParticles = birthParticles.filter(p => p.life > 0);
+
+  // Update dying creatures (fade out over 0.5s)
+  dyingCreatures.forEach(d => {
+    d.alpha -= dt * 2;
+  });
+  dyingCreatures = dyingCreatures.filter(d => d.alpha > 0);
+
+  // Update discovery popups
+  discoveryPopups.forEach(p => {
+    p.timer -= dt;
+    // Slide in during first 0.3s
+    if (p.slideX > 0) {
+      p.slideX = Math.max(0, p.slideX - dt * 800);
+    }
+    // Slide out during last 0.5s
+    if (p.timer < 0.5) {
+      p.slideX = (0.5 - p.timer) / 0.5 * 250;
+    }
+  });
+  discoveryPopups = discoveryPopups.filter(p => p.timer > 0);
+
   if (simSpeed === 0) return;
   const scaledDt = dt * simSpeed;
   gameTime += scaledDt;
@@ -368,18 +514,34 @@ function update(dt: number) {
   for (const c of creatures) {
     if (!c.alive) continue;
     const result = updateCreature(c, creatures, plants, terrain, fences, scaledDt, rng, getDayTime(), getCurrentDay());
-    if (result.born) newCreatures.push(result.born);
+    if (result.born) {
+      newCreatures.push(result.born);
+      spawnBirthParticles(result.born.pos.x, result.born.pos.y);
+      biomeSFX.playPop();
+    }
     if (result.journalEvent) addJournal(result.journalEvent);
     if (result.discoveryEvent) addDiscovery(result.discoveryEvent.id, result.discoveryEvent.title, result.discoveryEvent.desc, 'behavior', '\uD83D\uDD2C', '#4ade80');
   }
   creatures.push(...newCreatures);
 
-  // Remove dead - with floating death notifications
-  const deadCreatures = creatures.filter(c => !c.alive);
-  deadCreatures.forEach(c => {
+  // Remove dead - with fade-out animation + death tone
+  const deadCreaturesList = creatures.filter(c => !c.alive);
+  if (deadCreaturesList.length > 0) {
+    biomeSFX.playDeathTone();
+  }
+  deadCreaturesList.forEach(c => {
     const name = c.nickname || `${c.species}#${c.id}`;
     addJournal(`\uD83D\uDC80 ${name} \uc0ac\ub9dd (${Math.round(c.age)}\uc77c, ${c.generation}\uc138\ub300)`);
     addFloatingNotification(`\uD83D\uDC80 ${name} \uc0ac\ub9dd`, c.pos.x, c.pos.y, '#ef4444');
+    // Add to dying list for fade-out effect
+    const config = SPECIES_CONFIG[c.species];
+    dyingCreatures.push({
+      x: c.pos.x, y: c.pos.y,
+      species: c.species,
+      alpha: 1,
+      vel: c.vel,
+      size: config.baseSize * c.genetics.size * 4,
+    });
   });
   creatures = creatures.filter(c => c.alive);
 
@@ -877,15 +1039,49 @@ function render() {
       ctx.fillText(c.nickname, sc.x, sc.y - size - 5);
     }
 
-    // Selected highlight
+    // Selected highlight with pulsing ring
     if (c === selected) {
-      ctx.strokeStyle = '#fff';
+      const pulse = Math.sin(gameTime * 4) * 0.3 + 0.7;
+      const pulseRadius = size + 5 + Math.sin(gameTime * 3) * 3;
+      ctx.strokeStyle = `rgba(255,255,255,${pulse})`;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(sc.x, sc.y, size + 5, 0, Math.PI * 2);
+      ctx.arc(sc.x, sc.y, pulseRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      // Outer glow ring
+      ctx.strokeStyle = `rgba(${config.color === '#4ade80' ? '74,222,128' : '255,255,255'},${pulse * 0.3})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(sc.x, sc.y, pulseRadius + 4, 0, Math.PI * 2);
       ctx.stroke();
     }
   });
+
+  // Dying creatures (fading out)
+  dyingCreatures.forEach(d => {
+    const sc = worldToScreen(d.x, d.y);
+    if (sc.x < -20 || sc.x > W + 20 || sc.y < -20 || sc.y > H + 20) return;
+    const config = SPECIES_CONFIG[d.species];
+    const size = d.size * camera.zoom;
+    ctx.fillStyle = config.color;
+    ctx.strokeStyle = config.color;
+    ctx.globalAlpha = d.alpha * 0.6;
+    ctx.lineWidth = Math.max(1, 1.2 * camera.zoom);
+    drawCreatureShape(ctx, sc.x, sc.y, size, d.species, d.vel);
+    ctx.globalAlpha = 1;
+  });
+
+  // Birth particles
+  birthParticles.forEach(p => {
+    const sc = worldToScreen(p.x, p.y);
+    if (sc.x < -10 || sc.x > W + 10 || sc.y < -10 || sc.y > H + 10) return;
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(sc.x, sc.y, p.size * camera.zoom * p.life, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
 
   // Night overlay
   if (brightness < 0.6) {
@@ -1276,6 +1472,35 @@ function render() {
   });
   ctx.globalAlpha = 1;
 
+  // ==================== DISCOVERY POPUPS ====================
+  discoveryPopups.forEach((p, i) => {
+    const popW = 220;
+    const popH = 40;
+    const popX = W - popW + p.slideX;
+    const popY = 50 + i * 50;
+    const alpha = Math.min(1, p.timer > 0.5 ? 1 : p.timer * 2);
+
+    ctx.globalAlpha = alpha;
+
+    // Background
+    ctx.fillStyle = 'rgba(10,30,18,0.92)';
+    ctx.beginPath();
+    ctx.roundRect(popX, popY, popW, popH, 8);
+    ctx.fill();
+    ctx.strokeStyle = p.color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(popX, popY, popW, popH, 8);
+    ctx.stroke();
+
+    // Icon + text
+    ctx.fillStyle = p.color;
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(`${p.icon} ${p.title}`, popX + 10, popY + 25);
+  });
+  ctx.globalAlpha = 1;
+
   // ==================== TUTORIAL OVERLAY ====================
   if (showTutorial && screen === 'sim') {
     ctx.globalAlpha = tutorialAlpha * 0.85;
@@ -1341,6 +1566,7 @@ function drawButton(x: number, y: number, w: number, h: number, label: string, b
 
 // ==================== INPUT ====================
 canvas.addEventListener('mousedown', e => {
+  biomeSFX.init();
   if (screen === 'menu') {
     const H = canvas.height;
     // New simulation button
@@ -1465,9 +1691,11 @@ canvas.addEventListener('mouseup', e => {
       if (name) { sel.nickname = name; addJournal(`${sel.species}\uc5d0\uac8c "${name}" \uc774\ub984 \ubd80\uc5ec`); }
     }
   } else if (tool === 'food') {
+    biomeSFX.playClick();
     for (let i = 0; i < 5; i++) spawnPlant(wp.x + (rng() - 0.5) * 40, wp.y + (rng() - 0.5) * 40);
     addJournal('\uc74c\uc2dd\uc744 \ucd94\uac00\ud588\uc2b5\ub2c8\ub2e4');
   } else if (tool === 'species') {
+    biomeSFX.playClick();
     const types = Object.values(SpeciesType);
     const species = types[Math.floor(rng() * types.length)];
     creatures.push(createCreature(species, wp, rng, 0, undefined, getCurrentDay()));

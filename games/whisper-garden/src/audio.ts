@@ -246,6 +246,75 @@ export class AudioManager {
     osc.stop(now + 0.12);
   }
 
+  playDigSound(): void {
+    if (!this.ctx || !this.masterGain) return;
+    const now = this.ctx.currentTime;
+    // Low noise + tone for digging
+    const bufLen = this.ctx.sampleRate * 0.1;
+    const buf = this.ctx.createBuffer(1, bufLen, this.ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufLen);
+    const src = this.ctx.createBufferSource(); src.buffer = buf;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'lowpass'; bp.frequency.value = 400;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.15, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    src.connect(bp); bp.connect(g); g.connect(this.masterGain);
+    src.start(now);
+    // Add a low tone
+    const osc = this.ctx.createOscillator();
+    osc.type = 'sine'; osc.frequency.value = 120;
+    const og = this.ctx.createGain();
+    og.gain.setValueAtTime(0.1, now);
+    og.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    osc.connect(og); og.connect(this.masterGain);
+    osc.start(now); osc.stop(now + 0.1);
+  }
+
+  playWaterDropSound(): void {
+    if (!this.ctx || !this.masterGain) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1200, now);
+    osc.frequency.exponentialRampToValueAtTime(400, now + 0.2);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.12, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    osc.connect(g); g.connect(this.masterGain);
+    osc.start(now); osc.stop(now + 0.2);
+  }
+
+  playGrowthChime(): void {
+    if (!this.ctx || !this.masterGain) return;
+    const now = this.ctx.currentTime;
+    [880, 1100, 1320].forEach((freq, i) => {
+      const osc = this.ctx!.createOscillator();
+      osc.type = 'sine'; osc.frequency.value = freq;
+      const g = this.ctx!.createGain();
+      g.gain.setValueAtTime(0, now + i * 0.1);
+      g.gain.linearRampToValueAtTime(0.08, now + i * 0.1 + 0.04);
+      g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.3);
+      osc.connect(g); g.connect(this.masterGain!);
+      osc.start(now + i * 0.1); osc.stop(now + i * 0.1 + 0.3);
+    });
+  }
+
+  /** Shift ambient drone frequency based on time of day */
+  setAmbientTone(timeOfDay: TimeOfDay): void {
+    if (!this.ctx || !this.ambientNode) return;
+    const freqs: Record<TimeOfDay, number> = {
+      dawn: 146.83,    // D3
+      morning: 164.81,  // E3
+      noon: 196.00,     // G3
+      evening: 146.83,  // D3
+      night: 110.00,    // A2
+    };
+    const target = freqs[timeOfDay] || 130.81;
+    this.ambientNode.frequency.setTargetAtTime(target, this.ctx.currentTime, 2.0);
+  }
+
   toggleMute(): boolean {
     this.muted = !this.muted;
     if (this.masterGain) {

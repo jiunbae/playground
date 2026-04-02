@@ -42,10 +42,15 @@ export class Audio {
 
   playChain(chainCount) {
     if (!this.enabled || !this.ctx) return;
-    // Pitch rises with chain count
-    const baseFreq = 400 + chainCount * 80;
-    this._playTone(baseFreq, 0.15, 0.25, 'sine');
-    this._playTone(baseFreq * 1.5, 0.1, 0.15, 'triangle');
+    // Pitch rises with chain count for crescendo effect
+    const baseFreq = 400 + chainCount * 100;
+    const vol = Math.min(0.35, 0.2 + chainCount * 0.03);
+    this._playTone(baseFreq, 0.18, vol, 'sine');
+    this._playTone(baseFreq * 1.5, 0.12, vol * 0.6, 'triangle');
+    // Add shimmer on longer chains
+    if (chainCount >= 2) {
+      this._playTone(baseFreq * 2, 0.08, vol * 0.3, 'sine');
+    }
   }
 
   playPerfectChain() {
@@ -64,6 +69,42 @@ export class Audio {
   playUIClick() {
     if (!this.enabled || !this.ctx) return;
     this._playTone(800, 0.03, 0.1, 'sine');
+  }
+
+  playToolSwitch() {
+    if (!this.enabled || !this.ctx) return;
+    this._playTone(1000, 0.04, 0.12, 'sine');
+    setTimeout(() => this._playTone(1200, 0.03, 0.08, 'sine'), 30);
+  }
+
+  playSlowMoWhoosh() {
+    if (!this.enabled || !this.ctx) return;
+    this._playSweep(800, 200, 0.5, 0.2);
+    this._playNoise(0.3, 100, 600, 0.1);
+  }
+
+  playLevelComplete() {
+    if (!this.enabled || !this.ctx) return;
+    // Ascending arpeggio: C5 E5 G5 C6 E6 G6
+    const notes = [523, 659, 784, 1047, 1319, 1568];
+    notes.forEach((freq, i) => {
+      setTimeout(() => this._playTone(freq, 0.25, 0.2, 'sine'), i * 100);
+    });
+  }
+
+  playBlockCrack(materialType, intensity = 1.0) {
+    if (!this.enabled || !this.ctx) return;
+    const matSounds = {
+      wood: () => this._playNoise(0.08, 150, 600, 0.2 * intensity),
+      ice: () => this._playCrystal(600, 1500, 0.12, 0.2 * intensity),
+      glass: () => this._playCrystal(1500, 5000, 0.1, 0.25 * intensity),
+      metal: () => this._playMetal(200, 800, 0.2, 0.25 * intensity),
+      concrete: () => this._playNoise(0.12, 60, 300, 0.25 * intensity),
+      jelly: () => this._playBounce(400, 150, 0.1, 0.15 * intensity),
+      sand: () => this._playNoise(0.04, 300, 1500, 0.1 * intensity),
+    };
+    const fn = matSounds[materialType] || matSounds.wood;
+    fn();
   }
 
   playStar() {
