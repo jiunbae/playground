@@ -137,6 +137,11 @@ export class GameplayScene extends Phaser.Scene {
     // Drawing system
     this.drawingSystem = new DrawingSystem(this);
     this.drawingSystem.setInkLimit(this.stage.inkLimit);
+    // Disable drawing until stage intro finishes
+    this.drawingSystem.enabled = false;
+
+    // Stage intro overlay
+    this._showStageIntro(width, height);
 
     // UI
     this.gameUI = new GameUI(this);
@@ -1036,6 +1041,48 @@ export class GameplayScene extends Phaser.Scene {
         }
         if (!alive) { timer.destroy(); g.destroy(); }
       },
+    });
+  }
+
+  _showStageIntro(width, height) {
+    // Stage intro overlay - show stage name + objective for 2 seconds
+    const overlayBg = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.6)
+      .setDepth(100);
+    const goalText = this.stage.goals.map(g => g.description).join(' + ');
+    const stageLabel = this.add.text(width / 2, height / 2 - 20, `⭐ Stage ${this.stageId}`, {
+      fontSize: '32px',
+      fontFamily: 'Outfit, sans-serif',
+      fontStyle: 'bold',
+      color: '#FFC312',
+    }).setOrigin(0.5).setDepth(101).setAlpha(0);
+
+    const goalLabel = this.add.text(width / 2, height / 2 + 25, goalText, {
+      fontSize: '18px',
+      fontFamily: '"Noto Sans KR", sans-serif',
+      color: '#FFFFFF',
+    }).setOrigin(0.5).setDepth(101).setAlpha(0);
+
+    // Animate in
+    this.tweens.add({
+      targets: [stageLabel, goalLabel],
+      alpha: 1,
+      duration: 300,
+      ease: 'Power2',
+    });
+
+    // Fade out after 2 seconds, then enable drawing
+    this.time.delayedCall(2000, () => {
+      this.tweens.add({
+        targets: [overlayBg, stageLabel, goalLabel],
+        alpha: 0,
+        duration: 400,
+        onComplete: () => {
+          overlayBg.destroy();
+          stageLabel.destroy();
+          goalLabel.destroy();
+          if (this.drawingSystem) this.drawingSystem.enabled = true;
+        },
+      });
     });
   }
 

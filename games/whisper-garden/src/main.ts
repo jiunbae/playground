@@ -196,7 +196,10 @@ function getDayNumber(): number {
 // ==================== GARDEN LOGIC ====================
 function plantAt(gridX: number, gridY: number): void {
   if (!selectedPlantId) return;
-  if (garden.plants.some(p => p.gridX === gridX && p.gridY === gridY)) return;
+  if (garden.plants.some(p => p.gridX === gridX && p.gridY === gridY)) {
+    addToast('\u274C \uC774\uBBF8 \uC2DD\uBB3C\uC774 \uC788\uC5B4\uC694');
+    return;
+  }
 
   const type = getPlantType(selectedPlantId);
   if (!type) return;
@@ -515,7 +518,8 @@ function render(): void {
     });
 
     // HUD
-    renderer.drawText(`Day ${getDayNumber()} · ${tod} · ${season}`, W / 2, H * 0.32, 12, 'rgba(255,255,255,0.5)', 'center');
+    const seasonEmoji: Record<string, string> = { spring: '\uD83C\uDF38\uBD04', summer: '\u2600\uFE0F\uC5EC\uB984', autumn: '\uD83C\uDF42\uAC00\uC744', winter: '\u2744\uFE0F\uACA8\uC6B8' };
+    renderer.drawText(`Day ${getDayNumber()} · ${tod} · ${seasonEmoji[season] || season}`, W / 2, H * 0.32, 12, 'rgba(255,255,255,0.5)', 'center');
     renderer.drawText(`🌱 ${garden.plants.length}  ⭐ ${garden.aestheticScore}  ${weather === 'rain' ? '🌧️' : weather === 'sunny' ? '☀️' : weather === 'wind' ? '💨' : '🌤️'}`, W / 2, H * 0.28, 13, 'rgba(255,255,255,0.7)', 'center');
 
     // Watering can cursor

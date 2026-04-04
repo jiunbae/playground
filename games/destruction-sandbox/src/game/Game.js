@@ -532,7 +532,9 @@ export class Game {
   pause() {
     if (this.state !== 'playing' && this.state !== 'sandbox') return;
     this.state = 'paused';
-    this.ui.showPause();
+    const destroyedCount = this.blocks.filter(b => b.destroyed).length;
+    const rate = this.blocks.length > 0 ? destroyedCount / this.blocks.length : 0;
+    this.ui.showPause(rate);
   }
 
   resume() {

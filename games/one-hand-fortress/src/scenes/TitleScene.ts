@@ -77,13 +77,13 @@ export class TitleScene extends Phaser.Scene {
 
     // 게임 타이틀
     const title = this.add.text(GAME_WIDTH / 2, logoY + 20, '한 손의\n요새', {
-      fontSize: '36px', color: '#4a3c31', fontStyle: 'bold',
+      fontSize: '36px', fontFamily: 'Outfit, "Noto Sans KR", sans-serif', color: '#4a3c31', fontStyle: 'bold',
       align: 'center', lineSpacing: 4,
     }).setOrigin(0.5);
 
     // 영문 서브타이틀
     this.add.text(GAME_WIDTH / 2, logoY + 80, 'One Hand Fortress', {
-      fontSize: '18px', color: '#8d6e63',
+      fontSize: '18px', fontFamily: 'Outfit, sans-serif', color: '#8d6e63',
     }).setOrigin(0.5);
 
     // 태그라인

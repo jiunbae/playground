@@ -80,7 +80,7 @@ export class CardRenderer {
 
     // Card name - bold
     const name = scene.add.text(0, -h / 2 + 38 * scale, getCardName(card), {
-      fontSize: `${12 * scale}px`, fontFamily: 'sans-serif', color: '#FFFFFF',
+      fontSize: `${12 * scale}px`, fontFamily: '"Noto Sans KR", sans-serif', color: '#FFFFFF',
       fontStyle: 'bold', align: 'center',
       stroke: '#000000', strokeThickness: 1,
     }).setOrigin(0.5);
@@ -97,9 +97,10 @@ export class CardRenderer {
       fontSize: `${24 * scale}px`,
     }).setOrigin(0.5);
 
-    // Description - smaller italics
-    const desc = scene.add.text(0, h / 2 - 32 * scale, getCardDescription(card), {
-      fontSize: `${9 * scale}px`, fontFamily: 'sans-serif', color: '#BBBBCC',
+    // Description - increased to 11px, bold keywords, Noto Sans KR
+    const rawDesc = getCardDescription(card);
+    const desc = scene.add.text(0, h / 2 - 32 * scale, rawDesc, {
+      fontSize: `${11 * scale}px`, fontFamily: '"Noto Sans KR", sans-serif', color: '#BBBBCC',
       fontStyle: 'italic', align: 'center', wordWrap: { width: w - 12 * scale },
     }).setOrigin(0.5);
 

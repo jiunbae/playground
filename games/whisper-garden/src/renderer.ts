@@ -373,7 +373,7 @@ export class Renderer {
     if (plant.water < 0.3) {
       const dropY = -plantType.maxHeight * growth * plant.sizeVariant - 15;
       this.ctx.fillStyle = 'rgba(100, 180, 255, 0.7)';
-      this.ctx.font = '14px serif';
+      this.ctx.font = '14px "Noto Sans KR", serif';
       this.ctx.textAlign = 'center';
       this.ctx.fillText('💧', 0, dropY);
     }
@@ -956,7 +956,7 @@ export class Renderer {
 
     // Text
     this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    this.ctx.font = `${Math.min(btn.h * 0.4, 18)}px 'Segoe UI', sans-serif`;
+    this.ctx.font = `${Math.min(btn.h * 0.4, 18)}px 'Noto Sans KR', 'Outfit', sans-serif`;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
     this.ctx.fillText(btn.label, btn.x + btn.w / 2, btn.y + btn.h / 2);
@@ -965,8 +965,9 @@ export class Renderer {
   }
 
   drawText(text: string, x: number, y: number, size: number = 16, color: string = 'white', align: CanvasTextAlign = 'left'): void {
+    // Use Noto Sans KR for Korean text
     this.ctx.fillStyle = color;
-    this.ctx.font = `${size}px 'Segoe UI', sans-serif`;
+    this.ctx.font = `${size}px 'Noto Sans KR', 'Outfit', sans-serif`;
     this.ctx.textAlign = align;
     this.ctx.textBaseline = 'middle';
     this.ctx.fillText(text, x, y);
@@ -979,7 +980,7 @@ export class Renderer {
     this.ctx.shadowBlur = 10;
     this.ctx.shadowOffsetY = 3;
     this.ctx.fillStyle = 'rgba(255, 255, 240, 0.95)';
-    this.ctx.font = `bold ${size}px 'Segoe UI', sans-serif`;
+    this.ctx.font = `900 ${size}px 'Outfit', 'Noto Sans KR', sans-serif`;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
     this.ctx.fillText(text, x, y);

@@ -43,12 +43,12 @@ export class MainMenuScene extends Phaser.Scene {
 
     // Title
     this.add.text(GAME_WIDTH / 2, 200, '카드의 탑', {
-      fontSize: '56px', fontFamily: 'sans-serif', color: COLORS.ACCENT_HEX,
+      fontSize: '56px', fontFamily: 'Outfit, "Noto Sans KR", sans-serif', color: COLORS.ACCENT_HEX,
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
     this.add.text(GAME_WIDTH / 2, 260, 'TOWER OF CARDS', {
-      fontSize: '18px', fontFamily: 'sans-serif', color: '#888888',
+      fontSize: '18px', fontFamily: 'Outfit, sans-serif', color: '#888888',
     }).setOrigin(0.5);
 
     // Subtitle

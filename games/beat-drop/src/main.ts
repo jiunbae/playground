@@ -156,6 +156,7 @@ interface Song {
   pattern: number[];   // melody pattern (semitone offsets)
   bassPattern: number[];
   duration: number;    // seconds
+  noteDensity: number; // per-song note density multiplier
 }
 
 interface GameState {
@@ -270,6 +271,7 @@ const SONGS: Song[] = [
     pattern: [0, 0, 3, 5, 7, 5, 3, 0, -2, 0, 3, 7, 10, 7, 5, 3],
     bassPattern: [0, 0, -12, -12, -7, -7, -5, -5],
     duration: 45,
+    noteDensity: 1.0,
   },
   {
     name: 'Midnight Drive',
@@ -280,6 +282,7 @@ const SONGS: Song[] = [
     pattern: [0, 4, 7, 12, 11, 7, 4, 0, -1, 4, 7, 11, 12, 16, 12, 7],
     bassPattern: [0, 0, -5, -5, -7, -7, -3, -3],
     duration: 50,
+    noteDensity: 0.85,
   },
   {
     name: 'Solar Flare',
@@ -290,6 +293,7 @@ const SONGS: Song[] = [
     pattern: [0, 3, 7, 10, 12, 10, 7, 3, 0, 5, 8, 12, 15, 12, 8, 5],
     bassPattern: [0, -12, -7, -12, -5, -12, -3, -12],
     duration: 40,
+    noteDensity: 1.2,
   },
 ];
 
@@ -531,7 +535,9 @@ function generateChart(song: Song, difficulty: Difficulty): Note[] {
   // Hard: notes on beats and half-beats
   const subdivision = difficulty === 'Hard' ? 0.5 : 1;
   const steps = Math.floor(song.duration / (beatDuration * subdivision));
-  const skipChance = difficulty === 'Easy' ? 0.5 : difficulty === 'Normal' ? 0.2 : 0.1;
+  // Apply per-song density multiplier: lower density = higher skip chance
+  const baseSkip = difficulty === 'Easy' ? 0.5 : difficulty === 'Normal' ? 0.2 : 0.1;
+  const skipChance = clampNum(baseSkip / (song.noteDensity || 1), 0, 0.8);
 
   // "Drop" section: middle 30% of song has higher density
   const dropStart = song.duration * 0.4;
@@ -641,7 +647,7 @@ function drawButton(btn: Button) {
   ctx.stroke();
 
   ctx.fillStyle = '#ffffff';
-  ctx.font = `bold ${Math.min(btn.h * 0.4, 20)}px 'Segoe UI', sans-serif`;
+  ctx.font = `bold ${Math.min(btn.h * 0.4, 20)}px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(btn.label, btn.x + btn.w / 2, btn.y + btn.h / 2);
@@ -683,7 +689,7 @@ function drawMenu() {
 
   // Title
   ctx.fillStyle = '#ffffff';
-  ctx.font = `bold ${Math.min(W * 0.12, 64)}px 'Segoe UI', sans-serif`;
+  ctx.font = `900 ${Math.min(W * 0.12, 64)}px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
@@ -695,7 +701,7 @@ function drawMenu() {
 
   // Subtitle
   ctx.fillStyle = '#aaaacc';
-  ctx.font = `${Math.min(W * 0.04, 20)}px 'Segoe UI', sans-serif`;
+  ctx.font = `${Math.min(W * 0.04, 20)}px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.fillText('비트 드롭 - 리듬 액션 게임', W / 2, H * 0.33);
 
   // Play button
@@ -711,17 +717,17 @@ function drawMenu() {
 
   // Controls info / onboarding
   ctx.fillStyle = '#8888aa';
-  ctx.font = `${Math.min(W * 0.032, 14)}px 'Segoe UI', sans-serif`;
+  ctx.font = `${Math.min(W * 0.032, 14)}px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.textAlign = 'center';
   const helpY = H * 0.65;
   ctx.fillText('키보드: D  F  J  K  |  터치: 화면 4분할 탭', W / 2, helpY);
   ctx.fillStyle = '#666688';
-  ctx.font = `${Math.min(W * 0.028, 13)}px 'Segoe UI', sans-serif`;
+  ctx.font = `${Math.min(W * 0.028, 13)}px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.fillText('떨어지는 노트가 판정선에 닿을 때 해당 레인을 누르세요', W / 2, helpY + 22);
 
   // Version
   ctx.fillStyle = '#333355';
-  ctx.font = `12px 'Segoe UI', sans-serif`;
+  ctx.font = `12px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.fillText('v1.0 - 웹 오디오 리듬 게임', W / 2, H * 0.95);
 
   // Leaderboard button
@@ -753,7 +759,7 @@ function drawSongSelect() {
 
   // Title
   ctx.fillStyle = '#ffffff';
-  ctx.font = `bold ${Math.min(W * 0.07, 32)}px 'Segoe UI', sans-serif`;
+  ctx.font = `bold ${Math.min(W * 0.07, 32)}px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.textAlign = 'center';
   ctx.fillText('곡 선택', W / 2, H * 0.08);
 
@@ -800,12 +806,12 @@ function drawSongSelect() {
     }
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${Math.min(W * 0.05, 22)}px 'Segoe UI', sans-serif`;
+    ctx.font = `bold ${Math.min(W * 0.05, 22)}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.textAlign = 'left';
     ctx.fillText(song.name, cx + 20, y + 30);
 
     ctx.fillStyle = '#ccccdd';
-    ctx.font = `${Math.min(W * 0.035, 15)}px 'Segoe UI', sans-serif`;
+    ctx.font = `${Math.min(W * 0.035, 15)}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.fillText(`${song.artist}  |  ${song.bpm} BPM  |  ${song.duration}s`, cx + 20, y + 55);
 
     // Clickable area
@@ -818,7 +824,7 @@ function drawSongSelect() {
   // Difficulty selector
   const diffY = startY + SONGS.length * (cardH + 16) + 20;
   ctx.fillStyle = '#ffffff';
-  ctx.font = `bold ${Math.min(W * 0.045, 18)}px 'Segoe UI', sans-serif`;
+  ctx.font = `bold ${Math.min(W * 0.045, 18)}px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.textAlign = 'center';
   ctx.fillText('난이도', W / 2, diffY);
 
@@ -852,7 +858,7 @@ function drawSongSelect() {
 
   // Difficulty description
   ctx.fillStyle = '#aaaacc';
-  ctx.font = `${Math.min(W * 0.032, 14)}px 'Segoe UI', sans-serif`;
+  ctx.font = `${Math.min(W * 0.032, 14)}px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.textAlign = 'center';
   ctx.fillText(diffDescriptions[state.difficulty], W / 2, diffY + 16 + diffBtnH + 16);
 
@@ -1017,14 +1023,15 @@ function judgeHit(lane: number) {
     }
     if (state.particles.length > 200) state.particles.splice(0, state.particles.length - 200);
 
-    // Spawn expanding hit ring
+    // Spawn expanding hit ring with judgment-specific color
+    const ringColor = judgment === 'Perfect' ? '#ffd700' : judgment === 'Great' ? '#ffffff' : '#999999';
     state.hitRings.push({
       x: laneX,
       y: hitY,
       radius: 5,
       maxRadius: judgment === 'Perfect' ? 80 : judgment === 'Great' ? 60 : 40,
       life: 1.0,
-      color: noteColor,
+      color: ringColor,
     });
 
     playHitSound(judgment);
@@ -1032,6 +1039,10 @@ function judgeHit(lane: number) {
 
   state.lastJudgment = judgment;
   state.lastJudgmentTime = state.currentTime;
+}
+
+function clampNum(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
 }
 
 function shiftColor(hex: string, amount: number): string {
@@ -1090,13 +1101,13 @@ function drawCountdown() {
 
   // Song info
   ctx.fillStyle = song.color;
-  ctx.font = `bold ${Math.min(W * 0.06, 28)}px 'Segoe UI', sans-serif`;
+  ctx.font = `bold ${Math.min(W * 0.06, 28)}px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(song.name, W / 2, H * 0.3);
 
   ctx.fillStyle = '#aaaacc';
-  ctx.font = `${Math.min(W * 0.035, 16)}px 'Segoe UI', sans-serif`;
+  ctx.font = `${Math.min(W * 0.035, 16)}px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.fillText(`${state.difficulty}  |  ${song.bpm} BPM`, W / 2, H * 0.36);
 
   // Countdown number
@@ -1112,13 +1123,13 @@ function drawCountdown() {
 
   if (state.countdownValue > 0) {
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${Math.min(W * 0.25, 120)}px 'Segoe UI', sans-serif`;
+    ctx.font = `bold ${Math.min(W * 0.25, 120)}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.fillText(`${state.countdownValue}`, 0, 0);
   } else {
     ctx.fillStyle = song.color;
     ctx.shadowColor = song.color;
     ctx.shadowBlur = 40;
-    ctx.font = `bold ${Math.min(W * 0.2, 96)}px 'Segoe UI', sans-serif`;
+    ctx.font = `bold ${Math.min(W * 0.2, 96)}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.fillText('GO!', 0, 0);
     ctx.shadowBlur = 0;
   }
@@ -1152,6 +1163,16 @@ function updatePlaying(dt: number) {
       state.lastJudgment = 'Miss';
       state.lastJudgmentTime = state.currentTime;
       state.missFlash = 0.6;
+      // Spawn red X ring for miss
+      state.hitRings.push({
+        x: getLaneX(note.lane),
+        y: hitY,
+        radius: 10,
+        maxRadius: 50,
+        life: 0.8,
+        color: '#ff3333',
+      });
+      playMissSound();
     }
   }
 
@@ -1327,7 +1348,7 @@ function drawPlaying() {
 
     // Key label inside circle
     ctx.fillStyle = `rgba(255,255,255,${0.45 + flash * 0.55})`;
-    ctx.font = `bold ${Math.min(padRadius * 0.8, 22)}px 'Segoe UI', sans-serif`;
+    ctx.font = `bold ${Math.min(padRadius * 0.8, 22)}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(LANE_KEYS[i].toUpperCase(), x, hitY);
@@ -1373,14 +1394,36 @@ function drawPlaying() {
     ctx.restore();
   }
 
-  // Hit rings (expanding ring effect)
+  // Hit rings (expanding ring effect) with judgment-specific visuals
   for (const ring of state.hitRings) {
-    ctx.beginPath();
-    ctx.arc(ring.x, ring.y, ring.radius, 0, Math.PI * 2);
-    ctx.strokeStyle = ring.color;
-    ctx.lineWidth = 3 * ring.life;
-    ctx.globalAlpha = ring.life * 0.7;
-    ctx.stroke();
+    ctx.globalAlpha = ring.life * 0.8;
+    if (ring.color === '#ff3333') {
+      // Miss: draw red X
+      const size = ring.radius * 0.6;
+      ctx.strokeStyle = '#ff3333';
+      ctx.lineWidth = 3 * ring.life;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(ring.x - size, ring.y - size);
+      ctx.lineTo(ring.x + size, ring.y + size);
+      ctx.moveTo(ring.x + size, ring.y - size);
+      ctx.lineTo(ring.x - size, ring.y + size);
+      ctx.stroke();
+    } else {
+      // Perfect/Great/Good: expanding ring
+      ctx.beginPath();
+      ctx.arc(ring.x, ring.y, ring.radius, 0, Math.PI * 2);
+      ctx.strokeStyle = ring.color;
+      ctx.lineWidth = ring.color === '#ffd700' ? 4 * ring.life : 3 * ring.life;
+      ctx.stroke();
+      // Golden glow for Perfect
+      if (ring.color === '#ffd700') {
+        ctx.shadowColor = '#ffd700';
+        ctx.shadowBlur = 12 * ring.life;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+    }
   }
   ctx.globalAlpha = 1;
 
@@ -1416,7 +1459,7 @@ function drawPlaying() {
     ctx.shadowBlur = 8;
     ctx.shadowOffsetY = 3;
     ctx.fillStyle = colors[state.lastJudgment];
-    ctx.font = `bold ${Math.min(W * 0.07, 34)}px 'Segoe UI', sans-serif`;
+    ctx.font = `bold ${Math.min(W * 0.07, 34)}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(state.lastJudgment, 0, 0);
@@ -1437,12 +1480,12 @@ function drawPlaying() {
     // Outline
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 4;
-    ctx.font = `bold ${comboSize}px 'Segoe UI', sans-serif`;
+    ctx.font = `bold ${comboSize}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.strokeText(`${state.combo}`, W / 2, H * 0.35);
     ctx.fillStyle = '#ffffff';
     ctx.globalAlpha = 0.9;
     ctx.fillText(`${state.combo}`, W / 2, H * 0.35);
-    ctx.font = `bold ${Math.min(W * 0.035, 16)}px 'Segoe UI', sans-serif`;
+    ctx.font = `bold ${Math.min(W * 0.035, 16)}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.strokeText('COMBO', W / 2, H * 0.35 + comboSize * 0.55);
     ctx.fillText('COMBO', W / 2, H * 0.35 + comboSize * 0.55);
     ctx.restore();
@@ -1456,7 +1499,7 @@ function drawPlaying() {
   ctx.strokeStyle = 'rgba(0,0,0,0.4)';
   ctx.lineWidth = 3;
   ctx.fillStyle = '#ffffff';
-  ctx.font = `bold ${Math.min(W * 0.05, 24)}px 'Segoe UI', sans-serif`;
+  ctx.font = `bold ${Math.min(W * 0.05, 24)}px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.textAlign = 'right';
   ctx.textBaseline = 'alphabetic';
   ctx.strokeText(state.score.toLocaleString(), W - 20, 35);
@@ -1481,7 +1524,7 @@ function drawPlaying() {
 
   // Song info
   ctx.fillStyle = '#aaaacc';
-  ctx.font = `${Math.min(W * 0.03, 13)}px 'Segoe UI', sans-serif`;
+  ctx.font = `${Math.min(W * 0.03, 13)}px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.textAlign = 'left';
   ctx.fillText(`${song.name} - ${state.difficulty}`, 20, 50);
 
@@ -1511,7 +1554,7 @@ function drawPlaying() {
     ctx.fillStyle = '#ffdd33';
     ctx.shadowColor = '#ffdd33';
     ctx.shadowBlur = 25;
-    ctx.font = `bold ${Math.min(W * 0.12, 60)}px 'Segoe UI', sans-serif`;
+    ctx.font = `bold ${Math.min(W * 0.12, 60)}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(`${state.comboMilestoneValue} COMBO!`, 0, 0);
@@ -1605,17 +1648,17 @@ function drawResults() {
 
   // Title
   ctx.fillStyle = '#aaaacc';
-  ctx.font = `bold ${Math.min(W * 0.05, 22)}px 'Segoe UI', sans-serif`;
+  ctx.font = `bold ${Math.min(W * 0.05, 22)}px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.textAlign = 'center';
   ctx.fillText('결과', W / 2, H * 0.06);
 
   // Song name
   ctx.fillStyle = song.color;
-  ctx.font = `bold ${Math.min(W * 0.06, 26)}px 'Segoe UI', sans-serif`;
+  ctx.font = `bold ${Math.min(W * 0.06, 26)}px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.fillText(song.name, W / 2, H * 0.12);
 
   ctx.fillStyle = '#888899';
-  ctx.font = `${Math.min(W * 0.035, 15)}px 'Segoe UI', sans-serif`;
+  ctx.font = `${Math.min(W * 0.035, 15)}px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.fillText(`${state.difficulty}  |  ${song.bpm} BPM`, W / 2, H * 0.17);
 
   // Grade with dramatic reveal animation
@@ -1638,7 +1681,7 @@ function drawResults() {
     ctx.fillStyle = gradeColors[state.grade];
     ctx.shadowColor = gradeColors[state.grade];
     ctx.shadowBlur = 30;
-    ctx.font = `bold ${Math.min(W * 0.25, 120)}px 'Segoe UI', sans-serif`;
+    ctx.font = `bold ${Math.min(W * 0.25, 120)}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(state.grade, 0, 0);
@@ -1648,11 +1691,11 @@ function drawResults() {
 
   // Score
   ctx.fillStyle = '#ffffff';
-  ctx.font = `bold ${Math.min(W * 0.08, 36)}px 'Segoe UI', sans-serif`;
+  ctx.font = `bold ${Math.min(W * 0.08, 36)}px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.fillText(state.score.toLocaleString(), W / 2, H * 0.43);
 
   ctx.fillStyle = '#888899';
-  ctx.font = `${Math.min(W * 0.035, 15)}px 'Segoe UI', sans-serif`;
+  ctx.font = `${Math.min(W * 0.035, 15)}px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.fillText('점수', W / 2, H * 0.47);
 
   // Accuracy
@@ -1661,11 +1704,11 @@ function drawResults() {
     ? ((state.judgments.Perfect * 100 + state.judgments.Great * 75 + state.judgments.Good * 50) / (totalNotes * 100)) * 100
     : 0;
   ctx.fillStyle = '#ffffff';
-  ctx.font = `bold ${Math.min(W * 0.055, 24)}px 'Segoe UI', sans-serif`;
+  ctx.font = `bold ${Math.min(W * 0.055, 24)}px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.textAlign = 'center';
   ctx.fillText(`${accuracy.toFixed(1)}%`, W / 2, H * 0.51);
   ctx.fillStyle = '#888899';
-  ctx.font = `${Math.min(W * 0.03, 13)}px 'Segoe UI', sans-serif`;
+  ctx.font = `${Math.min(W * 0.03, 13)}px 'Outfit', 'Noto Sans KR', sans-serif`;
   ctx.fillText('정확도', W / 2, H * 0.54);
 
   // Stats
@@ -1682,7 +1725,7 @@ function drawResults() {
   stats.forEach((s, i) => {
     const y = statsY + i * lineH;
     ctx.fillStyle = '#888899';
-    ctx.font = `${Math.min(W * 0.035, 15)}px 'Segoe UI', sans-serif`;
+    ctx.font = `${Math.min(W * 0.035, 15)}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.textAlign = 'left';
     ctx.fillText(s.label, W * 0.25, y);
     ctx.fillStyle = s.color;

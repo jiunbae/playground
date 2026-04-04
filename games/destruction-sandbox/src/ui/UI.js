@@ -53,7 +53,7 @@ function showDSLeaderboard() {
   overlay.id = 'ds-leaderboard-overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:2000;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;';
   overlay.innerHTML = `
-    <div style="background:linear-gradient(180deg,#0a0e27,#1a2380);border:1px solid rgba(255,64,129,0.4);border-radius:16px;padding:24px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;color:#fff;font-family:'Black Han Sans',sans-serif;">
+    <div style="background:linear-gradient(180deg,#0a0e27,#1a2380);border:1px solid rgba(255,64,129,0.4);border-radius:16px;padding:24px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;color:#fff;font-family:'Outfit','Noto Sans KR',sans-serif;">
       <h2 style="margin:0 0 12px;text-align:center;font-size:24px;">🏆 리더보드</h2>
       <table style="width:100%;border-collapse:collapse;font-size:13px;font-family:sans-serif;">
         <thead><tr style="border-bottom:2px solid rgba(255,255,255,0.2);">
@@ -64,7 +64,7 @@ function showDSLeaderboard() {
         <tbody>${rowsHtml}</tbody>
       </table>
       ${myRankHtml}
-      <button id="ds-lb-close" style="display:block;margin:16px auto 0;padding:10px 32px;border:none;border-radius:8px;background:linear-gradient(135deg,#FF4081,#FF1744);color:#fff;font-size:16px;cursor:pointer;font-family:'Black Han Sans',sans-serif;">닫기</button>
+      <button id="ds-lb-close" style="display:block;margin:16px auto 0;padding:10px 32px;border:none;border-radius:8px;background:linear-gradient(135deg,#FF4081,#FF1744);color:#fff;font-size:16px;cursor:pointer;font-family:'Outfit','Noto Sans KR',sans-serif;">닫기</button>
     </div>`;
 
   document.body.appendChild(overlay);
@@ -107,7 +107,7 @@ export class UI {
         pointer-events:auto;
       ">
         <h1 style="
-          font-family:'Black Han Sans',sans-serif; font-size:52px; color:#fff;
+          font-family:'Outfit','Noto Sans KR',sans-serif; font-size:52px; color:#fff;
           text-shadow: 0 0 40px rgba(255,64,129,0.6), 0 4px 8px rgba(0,0,0,0.5);
           margin-bottom:4px;
         ">부숴볼래?</h1>
@@ -117,7 +117,7 @@ export class UI {
 
         <button id="btn-campaign" class="menu-btn" style="
           width:280px; padding:16px 16px 12px; margin:6px; border:none; border-radius:14px;
-          font-family:'Black Han Sans',sans-serif; font-size:20px;
+          font-family:'Outfit','Noto Sans KR',sans-serif; font-size:20px;
           background: linear-gradient(135deg, #FF4081, #FF1744); color:#fff;
           box-shadow: 0 4px 20px rgba(255,64,129,0.4);
           cursor:pointer; transition: transform 0.15s;
@@ -129,7 +129,7 @@ export class UI {
 
         <button id="btn-sandbox" class="menu-btn" style="
           width:280px; padding:16px 16px 12px; margin:6px; border:none; border-radius:14px;
-          font-family:'Black Han Sans',sans-serif; font-size:20px;
+          font-family:'Outfit','Noto Sans KR',sans-serif; font-size:20px;
           background: linear-gradient(135deg, #7C4DFF, #536DFE); color:#fff;
           box-shadow: 0 4px 20px rgba(124,77,255,0.4);
           cursor:pointer; transition: transform 0.15s;
@@ -141,7 +141,7 @@ export class UI {
 
         <button id="btn-sandbox-build" class="menu-btn" style="
           width:280px; padding:16px 16px 12px; margin:6px; border:none; border-radius:14px;
-          font-family:'Black Han Sans',sans-serif; font-size:20px;
+          font-family:'Outfit','Noto Sans KR',sans-serif; font-size:20px;
           background: linear-gradient(135deg, #00BCD4, #0097A7); color:#fff;
           box-shadow: 0 4px 20px rgba(0,188,212,0.4);
           cursor:pointer; transition: transform 0.15s;
@@ -153,7 +153,7 @@ export class UI {
 
         <button id="btn-leaderboard" class="menu-btn" style="
           width:280px; padding:16px 16px 12px; margin:6px; border:none; border-radius:14px;
-          font-family:'Black Han Sans',sans-serif; font-size:20px;
+          font-family:'Outfit','Noto Sans KR',sans-serif; font-size:20px;
           background: linear-gradient(135deg, #FFD600, #FF9100); color:#fff;
           box-shadow: 0 4px 20px rgba(255,214,0,0.4);
           cursor:pointer; transition: transform 0.15s;
@@ -164,7 +164,7 @@ export class UI {
 
         <button id="btn-login" class="menu-btn" style="
           width:280px; padding:12px 16px; margin:20px 6px 6px; border:none; border-radius:14px;
-          font-family:'Black Han Sans',sans-serif; font-size:16px;
+          font-family:'Outfit','Noto Sans KR',sans-serif; font-size:16px;
           background: rgba(255,255,255,0.1); color:rgba(255,255,255,0.6);
           cursor:pointer; transition: transform 0.15s;
         ">🔑 로그인</button>
@@ -176,10 +176,12 @@ export class UI {
     `;
 
     this.container.querySelectorAll('.menu-btn').forEach(btn => {
-      btn.addEventListener('touchstart', () => btn.style.transform = 'scale(0.95)');
+      btn.addEventListener('mouseenter', () => btn.style.transform = 'scale(1.02)');
+      btn.addEventListener('mouseleave', () => btn.style.transform = 'scale(1)');
+      btn.addEventListener('touchstart', () => btn.style.transform = 'scale(0.98)');
       btn.addEventListener('touchend', () => btn.style.transform = 'scale(1)');
-      btn.addEventListener('mousedown', () => btn.style.transform = 'scale(0.95)');
-      btn.addEventListener('mouseup', () => btn.style.transform = 'scale(1)');
+      btn.addEventListener('mousedown', () => btn.style.transform = 'scale(0.98)');
+      btn.addEventListener('mouseup', () => btn.style.transform = 'scale(1.02)');
     });
 
     document.getElementById('btn-campaign').addEventListener('click', () => this._emit('campaign'));
@@ -231,7 +233,7 @@ export class UI {
         ">← 돌아가기</button>
 
         <h2 style="
-          font-family:'Black Han Sans',sans-serif; color:#7C4DFF;
+          font-family:'Outfit','Noto Sans KR',sans-serif; color:#7C4DFF;
           font-size:22px; margin-bottom:8px;
         ">구조물 선택</h2>
         <p style="color:rgba(255,255,255,0.5); font-size:12px; margin-bottom:16px;">
@@ -309,7 +311,7 @@ export class UI {
       html += `
         <div style="margin-bottom:24px;">
           <h2 style="
-            font-family:'Black Han Sans',sans-serif; color:#FFD600;
+            font-family:'Outfit','Noto Sans KR',sans-serif; color:#FFD600;
             font-size:20px; margin-bottom:4px;
           ">챕터 ${chapter.id}: ${chapter.name}</h2>
           <p style="color:rgba(255,255,255,0.5); font-size:12px; margin-bottom:12px;">
@@ -469,7 +471,7 @@ export class UI {
           background:rgba(255,255,255,0.05); border-radius:16px; padding:32px;
           border:1px solid rgba(255,255,255,0.15); max-width:320px; text-align:center;
         ">
-          <div style="font-family:'Black Han Sans',sans-serif; font-size:22px; color:#fff; margin-bottom:16px;">
+          <div style="font-family:'Outfit','Noto Sans KR',sans-serif; font-size:22px; color:#fff; margin-bottom:16px;">
             조작 방법
           </div>
           <div style="color:rgba(255,255,255,0.8); font-size:14px; line-height:2;">
@@ -481,7 +483,7 @@ export class UI {
           <button id="btn-help-close" style="
             margin-top:20px; padding:10px 32px; border:none; border-radius:10px;
             background:linear-gradient(135deg,#FF4081,#FF1744); color:#fff;
-            font-size:15px; font-family:'Black Han Sans',sans-serif; cursor:pointer;
+            font-size:15px; font-family:'Outfit','Noto Sans KR',sans-serif; cursor:pointer;
           ">확인</button>
         </div>
       </div>
@@ -492,7 +494,7 @@ export class UI {
         flex-direction:column; align-items:center; justify-content:center;
       ">
         <div id="level-clear-text" style="
-          font-family:'Black Han Sans',sans-serif; font-size:36px; color:#FFD600;
+          font-family:'Outfit','Noto Sans KR',sans-serif; font-size:36px; color:#FFD600;
           text-shadow:0 0 30px rgba(255,214,0,0.8), 0 0 60px rgba(255,64,129,0.4);
           opacity:0; transform:scale(0.5);
           transition: opacity 0.4s, transform 0.4s;
@@ -567,7 +569,7 @@ export class UI {
         <button id="btn-start-destroy" style="
           background:linear-gradient(135deg,#FF4081,#FF1744); border:none; border-radius:8px;
           color:#fff; padding:8px 14px; font-size:13px; cursor:pointer;
-          pointer-events:auto; font-family:'Black Han Sans',sans-serif;
+          pointer-events:auto; font-family:'Outfit','Noto Sans KR',sans-serif;
         ">부숴볼래? 💥</button>
       </div>
 
@@ -770,7 +772,7 @@ export class UI {
         ` : ''}
 
         <div style="
-          font-family:'Black Han Sans',sans-serif; font-size:24px;
+          font-family:'Outfit','Noto Sans KR',sans-serif; font-size:24px;
           color:rgba(255,255,255,0.6); margin-bottom:8px;
         ">${level.name}</div>
 
@@ -815,12 +817,12 @@ export class UI {
           <button id="btn-retry" style="
             padding:14px 28px; border:2px solid rgba(255,255,255,0.3); border-radius:12px;
             background:transparent; color:#fff; font-size:16px;
-            font-family:'Black Han Sans',sans-serif; cursor:pointer;
+            font-family:'Outfit','Noto Sans KR',sans-serif; cursor:pointer;
           ">재도전</button>
           <button id="btn-next" style="
             padding:14px 28px; border:none; border-radius:12px;
             background:linear-gradient(135deg,#FF4081,#FF1744); color:#fff;
-            font-size:16px; font-family:'Black Han Sans',sans-serif; cursor:pointer;
+            font-size:16px; font-family:'Outfit','Noto Sans KR',sans-serif; cursor:pointer;
             box-shadow:0 4px 15px rgba(255,64,129,0.4);
           ">다음 스테이지</button>
         </div>
@@ -852,7 +854,7 @@ export class UI {
         animation: slideIn 0.4s ease-out;
       ">
         <div style="
-          font-family:'Black Han Sans',sans-serif; font-size:28px;
+          font-family:'Outfit','Noto Sans KR',sans-serif; font-size:28px;
           color:#7C4DFF; margin-bottom:16px;
         ">파괴 완료!</div>
 
@@ -876,12 +878,12 @@ export class UI {
           <button id="btn-sandbox-again" style="
             padding:14px 28px; border:2px solid rgba(124,77,255,0.5); border-radius:12px;
             background:transparent; color:#fff; font-size:16px;
-            font-family:'Black Han Sans',sans-serif; cursor:pointer;
+            font-family:'Outfit','Noto Sans KR',sans-serif; cursor:pointer;
           ">다시 파괴</button>
           <button id="btn-sandbox-menu" style="
             padding:14px 28px; border:none; border-radius:12px;
             background:linear-gradient(135deg,#7C4DFF,#536DFE); color:#fff;
-            font-size:16px; font-family:'Black Han Sans',sans-serif; cursor:pointer;
+            font-size:16px; font-family:'Outfit','Noto Sans KR',sans-serif; cursor:pointer;
           ">메뉴로</button>
         </div>
       </div>
@@ -892,7 +894,7 @@ export class UI {
   }
 
   // === PAUSE MENU ===
-  showPause() {
+  showPause(destructionRate = 0) {
     const overlay = document.createElement('div');
     overlay.id = 'pause-overlay';
     overlay.style.cssText = `
@@ -902,26 +904,38 @@ export class UI {
       backdrop-filter:blur(8px);
     `;
     overlay.innerHTML = `
-      <div style="font-family:'Black Han Sans',sans-serif; font-size:32px; color:#fff; margin-bottom:32px;">
+      <div style="font-family:'Outfit','Noto Sans KR',sans-serif; font-size:32px; color:#fff; margin-bottom:16px;">
         일시정지
       </div>
+      <div id="pause-destruction-rate" style="
+        font-family:'Outfit','Noto Sans KR',sans-serif; font-size:18px; color:#FF4081;
+        margin-bottom:24px; padding:10px 20px;
+        background:rgba(255,64,129,0.1); border:1px solid rgba(255,64,129,0.3);
+        border-radius:10px; text-align:center;
+      ">파괴율: --</div>
       <button id="btn-resume" style="
         width:200px; padding:14px; margin:6px; border:none; border-radius:12px;
         background:linear-gradient(135deg,#FF4081,#FF1744); color:#fff;
-        font-size:18px; font-family:'Black Han Sans',sans-serif; cursor:pointer;
+        font-size:18px; font-family:'Outfit','Noto Sans KR',sans-serif; cursor:pointer;
       ">계속하기</button>
       <button id="btn-restart" style="
         width:200px; padding:14px; margin:6px; border:1px solid rgba(255,255,255,0.3);
         border-radius:12px; background:transparent; color:#fff;
-        font-size:18px; font-family:'Black Han Sans',sans-serif; cursor:pointer;
+        font-size:18px; font-family:'Outfit','Noto Sans KR',sans-serif; cursor:pointer;
       ">다시 시작</button>
       <button id="btn-quit" style="
         width:200px; padding:14px; margin:6px; border:1px solid rgba(255,255,255,0.15);
         border-radius:12px; background:transparent; color:rgba(255,255,255,0.6);
-        font-size:16px; font-family:'Black Han Sans',sans-serif; cursor:pointer;
+        font-size:16px; font-family:'Outfit','Noto Sans KR',sans-serif; cursor:pointer;
       ">나가기</button>
     `;
     this.container.appendChild(overlay);
+
+    // Update destruction rate display
+    const rateEl = document.getElementById('pause-destruction-rate');
+    if (rateEl) {
+      rateEl.textContent = `파괴율: ${Math.round(destructionRate * 100)}%`;
+    }
 
     document.getElementById('btn-resume').addEventListener('click', () => {
       overlay.remove();
@@ -1038,7 +1052,7 @@ export class UI {
         pointer-events:auto;
       " id="onboarding-tap">
         <div style="
-          font-family:'Black Han Sans',sans-serif; font-size:36px; color:#fff;
+          font-family:'Outfit','Noto Sans KR',sans-serif; font-size:36px; color:#fff;
           text-shadow:0 0 30px rgba(255,64,129,0.5); margin-bottom:8px;
         ">${s.title}</div>
         <div style="color:rgba(255,255,255,0.6); font-size:15px; margin-bottom:40px;">

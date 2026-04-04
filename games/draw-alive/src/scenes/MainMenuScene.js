@@ -51,14 +51,14 @@ export class MainMenuScene extends Phaser.Scene {
     // Title
     this.add.text(width / 2, height * 0.15, 'Draw Alive', {
       fontSize: '52px',
-      fontFamily: 'sans-serif',
+      fontFamily: 'Outfit, sans-serif',
       fontStyle: 'bold',
       color: '#FF6B6B',
     }).setOrigin(0.5);
 
     this.add.text(width / 2, height * 0.15 + 55, '그려서 살려내기', {
       fontSize: '20px',
-      fontFamily: 'sans-serif',
+      fontFamily: '"Noto Sans KR", sans-serif',
       color: '#2D3436',
     }).setOrigin(0.5);
 
@@ -215,38 +215,81 @@ export class MainMenuScene extends Phaser.Scene {
     const cx = width / 2;
     const cy = height * 0.35;
 
-    // Simple animated doodle character
-    g.lineStyle(4, 0x2D3436, 0.4);
+    // Smiling pencil character
+    const bodyTop = cy - 50;
+    const bodyBottom = cy + 50;
+    const bodyW = 16;
 
-    // Body (wobbly circle)
+    // Pencil body (vertical rectangle)
+    g.fillStyle(0xFFC312, 0.9);
+    g.fillRect(cx - bodyW / 2, bodyTop, bodyW, 80);
+
+    // Pencil tip (triangle at bottom)
+    g.fillStyle(0xF8C291, 0.9);
+    g.fillTriangle(cx - bodyW / 2, bodyBottom - 20, cx + bodyW / 2, bodyBottom - 20, cx, bodyBottom + 10);
+
+    // Pencil tip point
+    g.fillStyle(0x2D3436, 0.7);
+    g.fillTriangle(cx - 4, bodyBottom + 2, cx + 4, bodyBottom + 2, cx, bodyBottom + 10);
+
+    // Eraser cap at top
+    g.fillStyle(0xFF6B6B, 0.8);
+    g.fillRect(cx - bodyW / 2, bodyTop - 12, bodyW, 14);
+    g.lineStyle(2, 0xE55039, 0.6);
     g.beginPath();
-    for (let a = 0; a <= Math.PI * 2; a += 0.1) {
-      const r = 40 + Math.sin(a * 3) * 5;
-      const px = cx + Math.cos(a) * r;
-      const py = cy + Math.sin(a) * r;
-      if (a === 0) g.moveTo(px, py);
-      else g.lineTo(px, py);
-    }
-    g.closePath();
+    g.moveTo(cx - bodyW / 2, bodyTop);
+    g.lineTo(cx + bodyW / 2, bodyTop);
     g.strokePath();
 
+    // Circle head above eraser
+    const headCy = bodyTop - 28;
+    g.fillStyle(0xFFF3E0, 0.9);
+    g.fillCircle(cx, headCy, 18);
+    g.lineStyle(2.5, 0x2D3436, 0.5);
+    g.strokeCircle(cx, headCy, 18);
+
     // Eyes
-    g.fillStyle(0x2D3436, 0.5);
-    g.fillCircle(cx - 12, cy - 8, 5);
-    g.fillCircle(cx + 12, cy - 8, 5);
+    g.fillStyle(0x2D3436, 0.7);
+    g.fillCircle(cx - 6, headCy - 2, 3);
+    g.fillCircle(cx + 6, headCy - 2, 3);
+
+    // Eye sparkle
+    g.fillStyle(0xFFFFFF, 0.9);
+    g.fillCircle(cx - 5, headCy - 3, 1.2);
+    g.fillCircle(cx + 7, headCy - 3, 1.2);
 
     // Smile
+    g.lineStyle(2, 0x2D3436, 0.5);
     g.beginPath();
-    g.arc(cx, cy + 5, 12, 0.2, Math.PI - 0.2, false);
+    g.arc(cx, headCy + 4, 7, 0.3, Math.PI - 0.3, false);
+    g.strokePath();
+
+    // Small arms
+    g.lineStyle(2.5, 0x2D3436, 0.35);
+    g.beginPath();
+    g.moveTo(cx - bodyW / 2, cy - 15);
+    g.lineTo(cx - bodyW / 2 - 18, cy - 25);
+    g.moveTo(cx + bodyW / 2, cy - 15);
+    g.lineTo(cx + bodyW / 2 + 18, cy - 25);
     g.strokePath();
 
     // Small legs
-    g.lineStyle(3, 0x2D3436, 0.3);
+    g.lineStyle(2.5, 0x2D3436, 0.35);
     g.beginPath();
-    g.moveTo(cx - 15, cy + 40);
-    g.lineTo(cx - 20, cy + 55);
-    g.moveTo(cx + 15, cy + 40);
-    g.lineTo(cx + 20, cy + 55);
+    g.moveTo(cx - 5, bodyBottom + 10);
+    g.lineTo(cx - 10, bodyBottom + 25);
+    g.moveTo(cx + 5, bodyBottom + 10);
+    g.lineTo(cx + 10, bodyBottom + 25);
     g.strokePath();
+
+    // Gentle bobbing animation
+    this.tweens.add({
+      targets: g,
+      y: -5,
+      duration: 1500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
   }
 }

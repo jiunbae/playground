@@ -484,6 +484,21 @@ function playMilestoneSound(): void {
 
 // --- Main Game Class ---
 
+// Text shadow helper for canvas rendering
+function applyTextShadow(ctx: CanvasRenderingContext2D): void {
+  ctx.shadowColor = 'rgba(0,0,0,0.3)';
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 2;
+}
+
+function clearTextShadow(ctx: CanvasRenderingContext2D): void {
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+}
+
 class Game {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
@@ -605,6 +620,14 @@ class Game {
         if (piece) this.rotatePiece(piece);
       }
     });
+
+    // 2-finger touch to rotate while dragging
+    this.canvas.addEventListener('touchstart', e => {
+      if (e.touches.length === 2 && this.draggingPiece) {
+        e.preventDefault();
+        this.rotatePiece(this.draggingPiece);
+      }
+    }, { passive: false });
 
     // Wheel for gallery scroll
     this.canvas.addEventListener('wheel', e => {
@@ -1214,6 +1237,9 @@ class Game {
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, 0, this.width, this.height);
 
+    // Default text shadow for all canvas text
+    applyTextShadow(ctx);
+
     this.buttons = [];
 
     switch (this.screen) {
@@ -1222,6 +1248,8 @@ class Game {
       case 'complete': this.renderComplete(ctx); break;
       case 'gallery': this.renderGallery(ctx); break;
     }
+
+    clearTextShadow(ctx);
 
     // Tutorial overlay
     if (this.showTutorial) {
@@ -1266,12 +1294,14 @@ class Game {
 
     ctx.shadowColor = 'transparent';
 
-    // Text
+    // Text with shadow
+    applyTextShadow(ctx);
     ctx.fillStyle = '#f0e8dc';
-    ctx.font = `600 ${Math.min(btn.h * 0.38, 18)}px 'Segoe UI', system-ui, sans-serif`;
+    ctx.font = `600 ${Math.min(btn.h * 0.38, 18)}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(btn.label, btn.x + btn.w / 2, btn.y + btn.h / 2);
+    clearTextShadow(ctx);
 
     ctx.restore();
   }
@@ -1304,7 +1334,7 @@ class Game {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#ffd700';
-    ctx.font = `bold ${Math.min(24, this.width * 0.055)}px 'Segoe UI', system-ui, sans-serif`;
+    ctx.font = `bold ${Math.min(24, this.width * 0.055)}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.fillText('게임 방법', cx, panelY + 40);
 
     // Instructions
@@ -1317,15 +1347,15 @@ class Game {
 
     const lineStartY = panelY + 85;
     const lineGap = 48;
-    ctx.font = `400 ${Math.min(15, this.width * 0.038)}px 'Segoe UI', system-ui, sans-serif`;
+    ctx.font = `400 ${Math.min(15, this.width * 0.038)}px 'Outfit', 'Noto Sans KR', sans-serif`;
 
     lines.forEach((line, i) => {
       const y = lineStartY + i * lineGap;
       ctx.textAlign = 'left';
       ctx.fillStyle = '#f0e8dc';
-      ctx.font = `400 ${Math.min(22, this.width * 0.05)}px 'Segoe UI', system-ui, sans-serif`;
+      ctx.font = `400 ${Math.min(22, this.width * 0.05)}px 'Outfit', 'Noto Sans KR', sans-serif`;
       ctx.fillText(line.icon, panelX + 20, y);
-      ctx.font = `400 ${Math.min(15, this.width * 0.038)}px 'Segoe UI', system-ui, sans-serif`;
+      ctx.font = `400 ${Math.min(15, this.width * 0.038)}px 'Outfit', 'Noto Sans KR', sans-serif`;
       ctx.fillStyle = 'rgba(240, 232, 220, 0.85)';
       ctx.fillText(line.text, panelX + 52, y);
     });
@@ -1358,12 +1388,12 @@ class Game {
     ctx.shadowColor = `hsl(${this.menuHue}, 70%, 60%)`;
     ctx.shadowBlur = 30;
     ctx.fillStyle = '#f0e8dc';
-    ctx.font = `bold ${Math.min(this.width * 0.09, 48)}px 'Segoe UI', system-ui, sans-serif`;
+    ctx.font = `bold ${Math.min(this.width * 0.09, 48)}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.fillText('인피니트 모자이크', this.width / 2, titleY);
 
     ctx.shadowBlur = 0;
     ctx.fillStyle = `hsl(${this.menuHue}, 50%, 70%)`;
-    ctx.font = `400 ${Math.min(this.width * 0.04, 18)}px 'Segoe UI', system-ui, sans-serif`;
+    ctx.font = `400 ${Math.min(this.width * 0.04, 18)}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.fillText('프로시저럴 아트 퍼즐', this.width / 2, titleY + 40);
     ctx.restore();
 
@@ -1375,7 +1405,7 @@ class Game {
     const gap = 14;
 
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.font = `600 ${Math.min(this.width * 0.04, 16)}px 'Segoe UI', system-ui, sans-serif`;
+    ctx.font = `600 ${Math.min(this.width * 0.04, 16)}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillText('젠 모드', this.width / 2, sectionStartY);
 
@@ -1390,7 +1420,7 @@ class Game {
     // Speed Mode section
     const speedY = sectionStartY + 20 + 3 * (btnH + gap) + 30;
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.font = `600 ${Math.min(this.width * 0.04, 16)}px 'Segoe UI', system-ui, sans-serif`;
+    ctx.font = `600 ${Math.min(this.width * 0.04, 16)}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillText('스피드 챌린지', this.width / 2, speedY);
 
@@ -1482,7 +1512,7 @@ class Game {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.font = '400 11px "Segoe UI", system-ui, sans-serif';
+    ctx.font = '400 11px "Outfit", "Noto Sans KR", sans-serif';
     ctx.fillText('\uD074\uB9AD: \uD0C0\uC77C \uBC30\uCE58 | \uC6B0\uD074\uB9AD: \uD68C\uC804', this.width / 2, this.trayOffsetY - 8);
     ctx.restore();
 
@@ -1603,7 +1633,7 @@ class Game {
       ctx.textAlign = 'center';
       ctx.globalAlpha = a;
       ctx.fillStyle = '#ffd700';
-      ctx.font = `bold ${36 * a}px 'Segoe UI', system-ui, sans-serif`;
+      ctx.font = `bold ${36 * a}px 'Outfit', 'Noto Sans KR', sans-serif`;
       ctx.shadowColor = 'rgba(255, 215, 0, 0.5)';
       ctx.shadowBlur = 20;
       ctx.fillText('완성!', this.width / 2, this.height * 0.15);
@@ -1626,7 +1656,7 @@ class Game {
     // Progress
     const progressText = `${this.placedCount} / ${this.totalPieces}`;
     ctx.fillStyle = '#e0d4c8';
-    ctx.font = '600 15px "Segoe UI", system-ui, sans-serif';
+    ctx.font = '600 15px "Outfit", "Noto Sans KR", sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText(progressText, 80, 28);
 
@@ -1683,18 +1713,18 @@ class Game {
     // Score number inside gauge
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fbbf24';
-    ctx.font = '700 11px "Segoe UI", system-ui, sans-serif';
+    ctx.font = '700 11px "Outfit", "Noto Sans KR", sans-serif';
     ctx.fillText(`${Math.round(scoreVal * 100)}`, gaugeCx, gaugeCy + 4);
 
     // Label to the right
     ctx.textAlign = 'right';
     ctx.fillStyle = 'rgba(251, 191, 36, 0.7)';
-    ctx.font = '500 11px "Segoe UI", system-ui, sans-serif';
+    ctx.font = '500 11px "Outfit", "Noto Sans KR", sans-serif';
     ctx.fillText('조화', scoreX, 22);
 
     // Timer or elapsed
     ctx.fillStyle = '#a0a0c0';
-    ctx.font = '400 13px "Segoe UI", system-ui, sans-serif';
+    ctx.font = '400 13px "Outfit", "Noto Sans KR", sans-serif';
     if (this.gameMode === 'speed') {
       const secs = Math.ceil(this.timeRemaining);
       const urgent = this.timeRemaining < 10;
@@ -1711,12 +1741,12 @@ class Game {
         const pulse = 0.7 + Math.sin(this.menuTime * 8) * 0.3;
         ctx.globalAlpha = pulse;
         ctx.fillStyle = '#ef4444';
-        ctx.font = `bold 28px 'Segoe UI', system-ui, sans-serif`;
+        ctx.font = `bold 28px 'Outfit', 'Noto Sans KR', sans-serif`;
         ctx.shadowColor = 'rgba(239, 68, 68, 0.6)';
         ctx.shadowBlur = 15;
       } else {
         ctx.fillStyle = '#fbbf24';
-        ctx.font = `bold 22px 'Segoe UI', system-ui, sans-serif`;
+        ctx.font = `bold 22px 'Outfit', 'Noto Sans KR', sans-serif`;
         ctx.shadowColor = 'rgba(251, 191, 36, 0.3)';
         ctx.shadowBlur = 10;
       }
@@ -1744,7 +1774,7 @@ class Game {
 
       // Combo below score
       ctx.fillStyle = '#fbbf24';
-      ctx.font = '500 12px "Segoe UI", system-ui, sans-serif';
+      ctx.font = '500 12px "Outfit", "Noto Sans KR", sans-serif';
       ctx.fillText(`콤보: x${this.speedCombo.toFixed(1)}`, this.width / 2, 48);
 
       ctx.restore();
@@ -1752,7 +1782,7 @@ class Game {
       // Speed score on the right (smaller text)
       ctx.textAlign = 'right';
       ctx.fillStyle = '#a0a0c0';
-      ctx.font = '400 12px "Segoe UI", system-ui, sans-serif';
+      ctx.font = '400 12px "Outfit", "Noto Sans KR", sans-serif';
       ctx.fillText(`속도: ${this.speedScore}`, scoreX, 42);
     } else {
       const mins = Math.floor(this.elapsedTime / 60);
@@ -1764,7 +1794,7 @@ class Game {
     if (DIFFICULTY_CONFIG[this.difficulty].rotationEnabled) {
       ctx.textAlign = 'center';
       ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      ctx.font = '400 11px "Segoe UI", system-ui, sans-serif';
+      ctx.font = '400 11px "Outfit", "Noto Sans KR", sans-serif';
       ctx.fillText('탭하여 회전', this.width / 2, 28);
     }
 
@@ -1790,7 +1820,7 @@ class Game {
       ctx.stroke();
       ctx.fillStyle = '#fbbf24';
       ctx.textAlign = 'center';
-      ctx.font = '500 12px "Segoe UI", system-ui, sans-serif';
+      ctx.font = '500 12px "Outfit", "Noto Sans KR", sans-serif';
       ctx.fillText(label, ttX + ttW / 2, ttY + ttH / 2 + 1);
     }
 
@@ -1857,6 +1887,7 @@ class Game {
 
   drawPiece(ctx: CanvasRenderingContext2D, piece: PieceData, cx: number, cy: number, size: number, scale: number) {
     ctx.save();
+    clearTextShadow(ctx);
     ctx.translate(cx, cy);
     ctx.scale(scale, scale);
     ctx.rotate((piece.rotation * Math.PI) / 180);
@@ -2074,7 +2105,7 @@ class Game {
     ctx.fillStyle = '#ffd700';
     ctx.shadowColor = 'rgba(255, 215, 0, 0.4)';
     ctx.shadowBlur = 20;
-    ctx.font = `bold ${Math.min(this.width * 0.08, 40)}px 'Segoe UI', system-ui, sans-serif`;
+    ctx.font = `bold ${Math.min(this.width * 0.08, 40)}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.fillText('걸작 완성!', this.width / 2, this.height * 0.08);
     ctx.shadowBlur = 0;
 
@@ -2115,7 +2146,7 @@ class Game {
     // Score section
     const scoreY = serialY + 35;
     ctx.fillStyle = '#f0e8dc';
-    ctx.font = `bold ${Math.min(28, this.width * 0.06)}px 'Segoe UI', system-ui, sans-serif`;
+    ctx.font = `bold ${Math.min(28, this.width * 0.06)}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.fillText(`미적 점수: ${entry.score}`, this.width / 2, scoreY);
 
     // Radar chart (simplified as bars)
@@ -2135,7 +2166,7 @@ class Game {
       const y = barStartY + i * barGap;
       ctx.textAlign = 'left';
       ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.font = '500 13px "Segoe UI", system-ui, sans-serif';
+      ctx.font = '500 13px "Outfit", "Noto Sans KR", sans-serif';
       ctx.fillText(m.label, barX, y - 3);
 
       // Bar bg
@@ -2161,17 +2192,17 @@ class Game {
     if (this.gameMode === 'speed') {
       ctx.textAlign = 'center';
       ctx.fillStyle = '#fbbf24';
-      ctx.font = '600 18px "Segoe UI", system-ui, sans-serif';
+      ctx.font = '600 18px "Outfit", "Noto Sans KR", sans-serif';
       ctx.fillText(`스피드 점수: ${this.speedScore}`, this.width / 2, timeY);
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      ctx.font = '400 14px "Segoe UI", system-ui, sans-serif';
+      ctx.font = '400 14px "Outfit", "Noto Sans KR", sans-serif';
       ctx.fillText(`퍼즐: ${this.speedPuzzlesCompleted}개 | 최대 콤보: x${this.speedCombo.toFixed(1)}`, this.width / 2, timeY + 25);
     } else {
       const mins = Math.floor(entry.timeSeconds / 60);
       const secs = entry.timeSeconds % 60;
       ctx.textAlign = 'center';
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      ctx.font = '400 14px "Segoe UI", system-ui, sans-serif';
+      ctx.font = '400 14px "Outfit", "Noto Sans KR", sans-serif';
       ctx.fillText(`시간: ${mins}분 ${secs}초`, this.width / 2, timeY);
     }
 
@@ -2212,7 +2243,7 @@ class Game {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#f0e8dc';
-    ctx.font = `bold ${Math.min(this.width * 0.05, 24)}px 'Segoe UI', system-ui, sans-serif`;
+    ctx.font = `bold ${Math.min(this.width * 0.05, 24)}px 'Outfit', 'Noto Sans KR', sans-serif`;
     ctx.fillText('나의 갤러리', this.width / 2, 28);
     ctx.restore();
 
@@ -2226,15 +2257,15 @@ class Game {
 
       // Empty state icon
       ctx.fillStyle = 'rgba(255,255,255,0.15)';
-      ctx.font = `${Math.min(64, this.width * 0.12)}px 'Segoe UI', system-ui, sans-serif`;
+      ctx.font = `${Math.min(64, this.width * 0.12)}px 'Outfit', 'Noto Sans KR', sans-serif`;
       ctx.fillText('\uD83D\uDDBC\uFE0F', this.width / 2, this.height * 0.38);
 
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      ctx.font = `500 ${Math.min(18, this.width * 0.045)}px 'Segoe UI', system-ui, sans-serif`;
+      ctx.font = `500 ${Math.min(18, this.width * 0.045)}px 'Outfit', 'Noto Sans KR', sans-serif`;
       ctx.fillText('\uC544\uC9C1 \uC644\uC131\uD55C \uC791\uD488\uC774 \uC5C6\uC2B5\uB2C8\uB2E4', this.width / 2, this.height * 0.48);
 
       ctx.fillStyle = 'rgba(255,255,255,0.3)';
-      ctx.font = `400 ${Math.min(14, this.width * 0.035)}px 'Segoe UI', system-ui, sans-serif`;
+      ctx.font = `400 ${Math.min(14, this.width * 0.035)}px 'Outfit', 'Noto Sans KR', sans-serif`;
       ctx.fillText('\uD37C\uC990\uC744 \uC644\uC131\uD558\uBA74 \uC5EC\uAE30\uC5D0 \uC791\uD488\uC774 \uC800\uC7A5\uB429\uB2C8\uB2E4', this.width / 2, this.height * 0.53);
       ctx.restore();
 
@@ -2290,13 +2321,13 @@ class Game {
 
       // Info below mosaic
       ctx.fillStyle = '#e0d4c8';
-      ctx.font = '500 12px "Segoe UI", system-ui, sans-serif';
+      ctx.font = '500 12px "Outfit", "Noto Sans KR", sans-serif';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
       ctx.fillText(`점수: ${entry.score}`, x + 4, y + cardSize + 6);
 
       ctx.fillStyle = 'rgba(255,255,255,0.4)';
-      ctx.font = '400 10px "Segoe UI", system-ui, sans-serif';
+      ctx.font = '400 10px "Outfit", "Noto Sans KR", sans-serif';
       ctx.fillText(`${entry.date} | ${entry.difficulty} | ${entry.mode}`, x + 4, y + cardSize + 24);
 
       if (entry.timeSeconds > 0) {

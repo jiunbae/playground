@@ -88,6 +88,45 @@ let extinctionWarnings: ExtinctionWarning[] = [];
 // Track previously known species for extinction detection
 let previousSpeciesSet = new Set<SpeciesType>();
 
+// Low population warnings (species with <= 2 creatures)
+interface LowPopWarning {
+  species: SpeciesType;
+  count: number;
+  pulsePhase: number;
+}
+let lowPopWarnings: LowPopWarning[] = [];
+
+// Milestone system
+interface Milestone {
+  id: string;
+  title: string;
+  unlocked: boolean;
+  day: number;
+}
+let milestones: Milestone[] = [
+  { id: 'first_birth', title: '첫 번째 탄생 관찰', unlocked: false, day: 0 },
+  { id: 'five_species', title: '5종 공존', unlocked: false, day: 0 },
+  { id: 'hundred_days', title: '100일 생태계', unlocked: false, day: 0 },
+];
+
+// Milestone toast
+interface MilestoneToast {
+  title: string;
+  timer: number;
+  slideY: number;
+}
+let milestoneToasts: MilestoneToast[] = [];
+
+function unlockMilestone(id: string) {
+  const m = milestones.find(mi => mi.id === id);
+  if (!m || m.unlocked) return;
+  m.unlocked = true;
+  m.day = getCurrentDay();
+  milestoneToasts.push({ title: m.title, timer: 4, slideY: -60 });
+  biomeSFX.playDiscovery();
+  addJournal(`🏆 마일스톤 달성: ${m.title}`);
+}
+
 // --- BiomeSFX: Web Audio sound effects ---
 class BiomeSFX {
   private ctx: AudioContext | null = null;
@@ -300,6 +339,7 @@ function getSaveData() {
     popHistory,
     nextPlantId,
     rngState,
+    milestones,
     updatedAt: Date.now(),
   };
 }
@@ -362,6 +402,9 @@ function applyLoadedData(data: any): void {
   popHistory = data.popHistory || [];
   nextPlantId = data.nextPlantId || 1;
   rngState = data.rngState || Date.now();
+  if (data.milestones) {
+    milestones = data.milestones;
+  }
   terrain = new TerrainMap(0);
 }
 
@@ -570,6 +613,35 @@ function update(dt: number) {
     popHistory.push({ day: getCurrentDay(), counts, total: creatures.length });
     if (popHistory.length > 200) popHistory.shift();
   }
+
+  // Low population warnings: species with <= 2 creatures
+  lowPopWarnings = [];
+  for (const [species, count] of speciesCounts.entries()) {
+    if (count > 0 && count <= 2) {
+      lowPopWarnings.push({ species, count, pulsePhase: gameTime * 3 });
+    }
+  }
+
+  // Milestone tracking
+  // First birth
+  if (newCreatures.length > 0) {
+    unlockMilestone('first_birth');
+  }
+  // 5 species coexisting
+  if (currentSpeciesSet.size >= 5) {
+    unlockMilestone('five_species');
+  }
+  // 100 days
+  if (getCurrentDay() >= 100) {
+    unlockMilestone('hundred_days');
+  }
+
+  // Update milestone toasts
+  milestoneToasts.forEach(t => {
+    t.timer -= scaledDt;
+    if (t.slideY < 0) t.slideY = Math.min(0, t.slideY + scaledDt * 200);
+  });
+  milestoneToasts = milestoneToasts.filter(t => t.timer > 0);
 }
 
 // ==================== RENDER ====================
@@ -879,10 +951,10 @@ function render() {
 
   if (screen === 'menu') {
     ctx.textAlign = 'center';
-    ctx.font = 'bold 36px sans-serif';
+    ctx.font = "bold 36px 'Outfit', 'Noto Sans KR', sans-serif";
     ctx.fillStyle = '#4ade80';
     ctx.fillText('\uD83C\uDF0D \ud3ec\ucf13 \ubc14\uc774\uc634', W / 2, H * 0.3);
-    ctx.font = '14px sans-serif';
+    ctx.font = "14px 'Noto Sans KR', sans-serif";
     ctx.fillStyle = '#5a8a6a';
     ctx.fillText('AI \uc0dd\ubb3c\ub4e4\uc774 \uc790\uc728\uc801\uc73c\ub85c \uc9c4\ud654\ud558\ub294 \uc0dd\ud0dc\uacc4', W / 2, H * 0.38);
 
@@ -1034,7 +1106,7 @@ function render() {
     // Name
     if (c.nickname && camera.zoom > 0.8) {
       ctx.fillStyle = '#fff';
-      ctx.font = `${8 * camera.zoom}px sans-serif`;
+      ctx.font = `${8 * camera.zoom}px 'Noto Sans KR', sans-serif`;
       ctx.textAlign = 'center';
       ctx.fillText(c.nickname, sc.x, sc.y - size - 5);
     }
@@ -1093,7 +1165,7 @@ function render() {
   floatingNotifications.forEach(n => {
     ctx.globalAlpha = n.alpha;
     ctx.fillStyle = n.color;
-    ctx.font = 'bold 12px sans-serif';
+    ctx.font = "bold 12px 'Outfit', 'Noto Sans KR', sans-serif";
     ctx.textAlign = 'center';
     ctx.shadowBlur = 4;
     ctx.shadowColor = '#000';
@@ -1114,10 +1186,10 @@ function render() {
   ctx.restore();
 
   ctx.textAlign = 'left';
-  ctx.font = 'bold 12px sans-serif';
+  ctx.font = "bold 12px 'Outfit', 'Noto Sans KR', sans-serif";
   ctx.fillStyle = '#cde8d8';
   ctx.fillText(`Day ${getCurrentDay()} \u00B7 ${getTimeLabel()}`, 14, 26);
-  ctx.font = '11px sans-serif';
+  ctx.font = "11px 'Noto Sans KR', sans-serif";
   ctx.fillStyle = '#9ab8a8';
   ctx.fillText(`\uc0dd\ubb3c: ${creatures.length}  \uc885: ${new Set(creatures.map(c => c.species)).size}  \ubc1c\uacac: ${discoveries.length}`, 180, 26);
 
@@ -1135,7 +1207,7 @@ function render() {
     ctx.stroke();
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
-    ctx.font = '11px sans-serif';
+    ctx.font = "11px 'Noto Sans KR', sans-serif";
     ctx.fillText(speedLabels[i], bx + 22, 26);
   });
 
@@ -1161,7 +1233,7 @@ function render() {
     ctx.stroke();
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
-    ctx.font = '16px sans-serif';
+    ctx.font = "16px 'Noto Sans KR', sans-serif";
     ctx.fillText(icon, bx + 24, H - 20);
   });
 
@@ -1188,12 +1260,12 @@ function render() {
 
     // Header
     ctx.textAlign = 'left';
-    ctx.font = 'bold 14px sans-serif';
+    ctx.font = "bold 14px 'Outfit', 'Noto Sans KR', sans-serif";
     ctx.fillStyle = config.color;
     const behaviorIcon = getBehaviorIcon(selected.state);
     ctx.fillText(`${config.symbol} ${selected.nickname || selected.species} ${behaviorIcon}`, panelX + 10, panelY + 20);
 
-    ctx.font = '10px sans-serif';
+    ctx.font = "10px 'Noto Sans KR', sans-serif";
     ctx.fillStyle = '#6a8a7a';
     ctx.fillText(`${selected.species} \u00B7 ${selected.category} \u00B7 ${selected.generation}\uc138\ub300`, panelX + 10, panelY + 35);
 
@@ -1204,13 +1276,13 @@ function render() {
     const barH = 10;
 
     ctx.fillStyle = '#6a8a7a';
-    ctx.font = '9px sans-serif';
+    ctx.font = "9px 'Noto Sans KR', sans-serif";
     ctx.fillText('HP', barX, barY - 2);
     const hpRatio = selected.energy / selected.maxEnergy;
     const hpColor = hpRatio > 0.6 ? '#4ade80' : hpRatio > 0.3 ? '#fbbf24' : '#ef4444';
     drawBar(barX, barY, barW, barH, hpRatio, hpColor);
     ctx.fillStyle = '#fff';
-    ctx.font = '8px sans-serif';
+    ctx.font = "8px 'Noto Sans KR', sans-serif";
     ctx.textAlign = 'right';
     ctx.fillText(`${Math.round(selected.energy)}/${Math.round(selected.maxEnergy)}`, barX + barW - 2, barY + 8);
     ctx.textAlign = 'left';
@@ -1219,12 +1291,12 @@ function render() {
     barY += 18;
     const hunger = getHungerLabel(selected);
     ctx.fillStyle = '#6a8a7a';
-    ctx.font = '9px sans-serif';
+    ctx.font = "9px 'Noto Sans KR', sans-serif";
     ctx.fillText('\ubc30\uace0\ud514', barX, barY - 2);
     const hungerRatio = 1 - (selected.hunger || 0);
     drawBar(barX, barY, barW, barH, hungerRatio, hunger.color);
     ctx.fillStyle = hunger.color;
-    ctx.font = '8px sans-serif';
+    ctx.font = "8px 'Noto Sans KR', sans-serif";
     ctx.textAlign = 'right';
     ctx.fillText(hunger.text, barX + barW - 2, barY + 8);
     ctx.textAlign = 'left';
@@ -1232,20 +1304,20 @@ function render() {
     // Fear bar
     barY += 18;
     ctx.fillStyle = '#6a8a7a';
-    ctx.font = '9px sans-serif';
+    ctx.font = "9px 'Noto Sans KR', sans-serif";
     ctx.fillText('\uacf5\ud3ec', barX, barY - 2);
     drawBar(barX, barY, barW, barH, selected.fear || 0, '#a78bfa');
 
     // Reproduction urge bar
     barY += 18;
     ctx.fillStyle = '#6a8a7a';
-    ctx.font = '9px sans-serif';
+    ctx.font = "9px 'Noto Sans KR', sans-serif";
     ctx.fillText('\ubc88\uc2dd \uc695\uad6c', barX, barY - 2);
     drawBar(barX, barY, barW, barH, selected.reproductionUrge || 0, '#f472b6');
 
     // Info lines
     barY += 18;
-    ctx.font = '10px sans-serif';
+    ctx.font = "10px 'Noto Sans KR', sans-serif";
     ctx.fillStyle = '#8aaa9a';
     const infoLines = [
       `\ub098\uc774: ${Math.round(selected.age)}\uc77c / ${Math.round(selected.maxAge)}\uc77c`,
@@ -1278,13 +1350,13 @@ function render() {
 
     // Title
     ctx.fillStyle = '#4ade80';
-    ctx.font = 'bold 16px sans-serif';
+    ctx.font = "bold 16px 'Outfit', 'Noto Sans KR', sans-serif";
     ctx.textAlign = 'center';
     ctx.fillText('\uD83D\uDCD3 \uad00\ucc30 \uc77c\uc9c0', jX + jW / 2, jY + 28);
 
     // Close button
     ctx.fillStyle = '#888';
-    ctx.font = '18px sans-serif';
+    ctx.font = "18px 'Noto Sans KR', sans-serif";
     ctx.textAlign = 'right';
     ctx.fillText('\u2715', jX + jW - 12, jY + 28);
 
@@ -1295,7 +1367,7 @@ function render() {
     ctx.clip();
 
     ctx.textAlign = 'left';
-    ctx.font = '11px sans-serif';
+    ctx.font = "11px 'Noto Sans KR', sans-serif";
     const lineHeight = 20;
     const maxVisible = Math.floor((jH - 52) / lineHeight);
     const visibleEntries = journal.slice(journalScrollOffset, journalScrollOffset + maxVisible);
@@ -1346,13 +1418,13 @@ function render() {
 
     // Title
     ctx.fillStyle = '#4ade80';
-    ctx.font = 'bold 16px sans-serif';
+    ctx.font = "bold 16px 'Outfit', 'Noto Sans KR', sans-serif";
     ctx.textAlign = 'center';
     ctx.fillText('\uD83D\uDCCA \uac1c\uccb4\uc218 \ud1b5\uacc4', sX + sW / 2, sY + 28);
 
     // Close
     ctx.fillStyle = '#888';
-    ctx.font = '18px sans-serif';
+    ctx.font = "18px 'Noto Sans KR', sans-serif";
     ctx.textAlign = 'right';
     ctx.fillText('\u2715', sX + sW - 12, sY + 28);
 
@@ -1378,7 +1450,7 @@ function render() {
 
       // Label
       ctx.fillStyle = config.color;
-      ctx.font = '11px sans-serif';
+      ctx.font = "11px 'Noto Sans KR', sans-serif";
       ctx.fillText(`${config.symbol} ${species}`, sX + 12, y + 13);
 
       // Bar
@@ -1392,7 +1464,7 @@ function render() {
 
       // Count
       ctx.fillStyle = '#fff';
-      ctx.font = 'bold 10px sans-serif';
+      ctx.font = "bold 10px 'Noto Sans KR', sans-serif";
       ctx.fillText(`${count}`, sX + 95 + barW + 4, y + 13);
     });
 
@@ -1409,7 +1481,7 @@ function render() {
       ctx.strokeRect(graphX, graphY, graphW, graphH);
 
       ctx.fillStyle = '#6a8a7a';
-      ctx.font = '10px sans-serif';
+      ctx.font = "10px 'Noto Sans KR', sans-serif";
       ctx.textAlign = 'center';
       ctx.fillText('\uac1c\uccb4\uc218 \ubcc0\ud654 \uadf8\ub798\ud504', graphX + graphW / 2, graphY - 4);
 
@@ -1466,7 +1538,7 @@ function render() {
     ctx.strokeRect(bannerX, wY, bannerW, 40);
 
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 16px sans-serif';
+    ctx.font = "bold 16px 'Outfit', 'Noto Sans KR', sans-serif";
     ctx.textAlign = 'center';
     ctx.fillText(`\u26a0\ufe0f ${w.species} \uba78\uc885! \u26a0\ufe0f`, W / 2, wY + 26);
   });
@@ -1495,9 +1567,58 @@ function render() {
 
     // Icon + text
     ctx.fillStyle = p.color;
-    ctx.font = 'bold 14px sans-serif';
+    ctx.font = "bold 14px 'Outfit', 'Noto Sans KR', sans-serif";
     ctx.textAlign = 'left';
     ctx.fillText(`${p.icon} ${p.title}`, popX + 10, popY + 25);
+  });
+  ctx.globalAlpha = 1;
+
+  // ==================== LOW POPULATION WARNINGS ====================
+  if (lowPopWarnings.length > 0 && screen === 'sim' && !showStatsOverlay && !showJournalOverlay) {
+    const warnStartY = 42;
+    lowPopWarnings.forEach((lpw, i) => {
+      const config = SPECIES_CONFIG[lpw.species];
+      const warnY = warnStartY + i * 22;
+      const pulse = Math.sin(lpw.pulsePhase + i) * 0.3 + 0.7;
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = '#f97316';
+      ctx.font = "bold 11px 'Noto Sans KR', sans-serif";
+      ctx.textAlign = 'left';
+      const speciesName = lpw.species;
+      ctx.fillText(`⚠️ ${speciesName} ${lpw.count}마리 남음`, 14, warnY + 13);
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  // ==================== MILESTONE TOASTS ====================
+  milestoneToasts.forEach((toast, i) => {
+    const toastW = 260;
+    const toastH = 50;
+    const toastX = (W - toastW) / 2;
+    const toastY = H * 0.2 + i * 60 + toast.slideY;
+    const alpha = Math.min(1, toast.timer > 0.5 ? 1 : toast.timer * 2);
+
+    ctx.globalAlpha = alpha;
+
+    // Background
+    ctx.fillStyle = 'rgba(30,15,0,0.92)';
+    ctx.beginPath();
+    ctx.roundRect(toastX, toastY, toastW, toastH, 12);
+    ctx.fill();
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(toastX, toastY, toastW, toastH, 12);
+    ctx.stroke();
+
+    // Icon + text
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = "bold 14px 'Outfit', 'Noto Sans KR', sans-serif";
+    ctx.textAlign = 'center';
+    ctx.fillText(`🏆 ${toast.title}`, toastX + toastW / 2, toastY + 22);
+    ctx.fillStyle = '#fde68a';
+    ctx.font = "10px 'Noto Sans KR', sans-serif";
+    ctx.fillText('마일스톤 달성!', toastX + toastW / 2, toastY + 40);
   });
   ctx.globalAlpha = 1;
 
@@ -1522,7 +1643,7 @@ function render() {
     ctx.strokeRect(tX, tY, tW, tH);
 
     ctx.fillStyle = '#4ade80';
-    ctx.font = 'bold 15px sans-serif';
+    ctx.font = "bold 15px 'Outfit', 'Noto Sans KR', sans-serif";
     ctx.textAlign = 'center';
     ctx.fillText('\uD83C\uDF0D \uc870\uc791\ubc95', tX + tW / 2, tY + 28);
 
@@ -1534,7 +1655,7 @@ function render() {
       '\uc18d\ub3c4 \uc870\uc808: \u23F8 1\u00D7 3\u00D7 5\u00D7',
     ];
 
-    ctx.font = '12px sans-serif';
+    ctx.font = "12px 'Noto Sans KR', sans-serif";
     ctx.textAlign = 'left';
     tutLines.forEach((line, i) => {
       ctx.fillStyle = '#c0e8d0';
@@ -1543,7 +1664,7 @@ function render() {
 
     // Dismiss hint
     ctx.fillStyle = '#5a8a6a';
-    ctx.font = '11px sans-serif';
+    ctx.font = "11px 'Noto Sans KR', sans-serif";
     ctx.textAlign = 'center';
     ctx.fillText('\ud0ed\ud558\uc5ec \ub2eb\uae30', tX + tW / 2, tY + tH - 12);
 
@@ -1557,7 +1678,7 @@ function drawButton(x: number, y: number, w: number, h: number, label: string, b
   ctx.strokeStyle = '#2a4a3a';
   ctx.strokeRect(x, y, w, h);
   ctx.fillStyle = '#fff';
-  ctx.font = '14px sans-serif';
+  ctx.font = "14px 'Noto Sans KR', sans-serif";
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(label, x + w / 2, y + h / 2);

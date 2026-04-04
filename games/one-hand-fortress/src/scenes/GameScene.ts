@@ -888,6 +888,9 @@ export class GameScene extends Phaser.Scene {
     // ==================== WAVE INCOMING BANNER ====================
     this.showWaveBanner(this.currentWave + 1);
 
+    // Show enemy paths at wave start (semi-transparent colored lines that fade after 3s)
+    this.showEnemyPaths();
+
     const waveData = this.waves[this.currentWave];
     this.spawnQueue = [];
 
@@ -937,6 +940,40 @@ export class GameScene extends Phaser.Scene {
           },
         });
       },
+    });
+  }
+
+  private showEnemyPaths(): void {
+    const pathColors = [0xff8a80, 0xffd54f, 0x80cbc4, 0xce93d8, 0xa5d6a7];
+    this.cachedPaths.forEach((path, pi) => {
+      if (path.length < 2) return;
+      const g = this.add.graphics().setDepth(8).setAlpha(0.5);
+      const color = pathColors[pi % pathColors.length];
+      g.lineStyle(3, color, 0.6);
+      g.beginPath();
+      const firstPt = path[0];
+      g.moveTo(firstPt.x * CELL_SIZE + CELL_SIZE / 2, MAP_TOP + firstPt.y * CELL_SIZE + CELL_SIZE / 2);
+      for (let i = 1; i < path.length; i++) {
+        const pt = path[i];
+        g.lineTo(pt.x * CELL_SIZE + CELL_SIZE / 2, MAP_TOP + pt.y * CELL_SIZE + CELL_SIZE / 2);
+      }
+      g.strokePath();
+
+      // Draw small directional dots along path
+      for (let i = 0; i < path.length; i += 3) {
+        const pt = path[i];
+        g.fillStyle(color, 0.4);
+        g.fillCircle(pt.x * CELL_SIZE + CELL_SIZE / 2, MAP_TOP + pt.y * CELL_SIZE + CELL_SIZE / 2, 3);
+      }
+
+      // Fade out after 3 seconds
+      this.tweens.add({
+        targets: g,
+        alpha: 0,
+        duration: 1000,
+        delay: 2000,
+        onComplete: () => g.destroy(),
+      });
     });
   }
 

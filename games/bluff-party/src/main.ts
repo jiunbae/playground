@@ -149,6 +149,15 @@ const DRAWING_PROMPTS: { normal: string; bluffer: string; category: string }[] =
   { normal: '펭귄', bluffer: '오리', category: '동물' },
   { normal: '케이크', bluffer: '아이스크림', category: '디저트' },
   { normal: '집', bluffer: '텐트', category: '건물' },
+  { normal: '돌고래', bluffer: '상어', category: '바다동물' },
+  { normal: '라면', bluffer: '국수', category: '면요리' },
+  { normal: '선풍기', bluffer: '에어컨', category: '가전' },
+  { normal: '연필', bluffer: '볼펜', category: '문구' },
+  { normal: '눈사람', bluffer: '산타', category: '겨울' },
+  { normal: '무지개', bluffer: '구름', category: '날씨' },
+  { normal: '거미', bluffer: '개미', category: '곤충' },
+  { normal: '카메라', bluffer: '망원경', category: '광학' },
+  { normal: '소방차', bluffer: '경찰차', category: '특수차량' },
 ];
 
 const QUIZ_PROMPTS: { question: string; correctAnswer: string; blufferAnswer: string; category: string }[] = [
@@ -164,6 +173,13 @@ const QUIZ_PROMPTS: { question: string; correctAnswer: string; blufferAnswer: st
   { question: 'BTS의 데뷔곡은?', correctAnswer: 'No More Dream', blufferAnswer: 'Danger', category: '음악' },
   { question: '일본의 수도는?', correctAnswer: '도쿄', blufferAnswer: '오사카', category: '지리' },
   { question: '1 + 1 = ?', correctAnswer: '2', blufferAnswer: '11 (이진법)', category: '수학' },
+  { question: '무지개는 몇 가지 색인가?', correctAnswer: '7가지', blufferAnswer: '5가지', category: '상식' },
+  { question: '중국의 수도는?', correctAnswer: '베이징', blufferAnswer: '상하이', category: '지리' },
+  { question: '지구에서 달까지 빛이 가는 시간은?', correctAnswer: '약 1.3초', blufferAnswer: '약 8분', category: '과학' },
+  { question: '한글은 누가 만들었나?', correctAnswer: '세종대왕', blufferAnswer: '이순신', category: '역사' },
+  { question: '축구 한 팀은 몇 명?', correctAnswer: '11명', blufferAnswer: '9명', category: '스포츠' },
+  { question: '다이아몬드의 주성분은?', correctAnswer: '탄소', blufferAnswer: '규소', category: '과학' },
+  { question: '나폴레옹의 국적은?', correctAnswer: '프랑스', blufferAnswer: '이탈리아', category: '역사' },
 ];
 
 const DESCRIBE_PROMPTS: { normal: string; bluffer: string; category: string }[] = [
@@ -182,6 +198,16 @@ const DESCRIBE_PROMPTS: { normal: string; bluffer: string; category: string }[] 
   { normal: '강아지', bluffer: '고양이', category: '동물' },
   { normal: '운동회', bluffer: '소풍', category: '학교행사' },
   { normal: '비 오는 날', bluffer: '눈 오는 날', category: '날씨' },
+  { normal: '치킨', bluffer: '피자', category: '배달음식' },
+  { normal: '수영장', bluffer: '워터파크', category: '물놀이' },
+  { normal: '병원', bluffer: '약국', category: '의료' },
+  { normal: '노래방', bluffer: '영화관', category: '놀거리' },
+  { normal: '캠핑', bluffer: '글램핑', category: '야외활동' },
+  { normal: '마트', bluffer: '편의점', category: '쇼핑' },
+  { normal: '아침', bluffer: '저녁', category: '시간' },
+  { normal: '봄', bluffer: '가을', category: '계절' },
+  { normal: '고등학생', bluffer: '대학생', category: '학교' },
+  { normal: '전화', bluffer: '문자', category: '소통' },
 ];
 
 // --- Color Palette ---
@@ -671,7 +697,7 @@ function renderTitle(): void {
         <button id="btn-sdk-login" style="background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:36px;height:36px;font-size:16px;cursor:pointer;opacity:0.6;">${sdkLoggedIn ? '\u{1F464}' : '\u{1F512}'}</button>
       </div>
       <div class="mask-emoji" style="margin-bottom:10px;">\uD83C\uDFAD</div>
-      <h1 style="font-size:42px;font-weight:900;background:linear-gradient(to right,${COLORS.primary},${COLORS.yellow});-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;">BLUFF PARTY</h1>
+      <h1 style="font-family:'Outfit','Noto Sans KR',sans-serif;font-size:42px;font-weight:900;background:linear-gradient(to right,${COLORS.primary},${COLORS.yellow});-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;">BLUFF PARTY</h1>
       <p style="font-size:18px;color:${COLORS.yellow};margin-bottom:30px;font-weight:700;">블러프 파티</p>
       <p style="font-size:14px;color:${COLORS.gray};margin-bottom:30px;max-width:300px;line-height:1.6;">
         폰 하나, 친구 여럿<br>거짓말쟁이를 찾아라!
@@ -762,7 +788,7 @@ function renderSetup(): void {
           <div style="width:32px;height:32px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;">${i + 1}</div>
           <input id="name-${i}" type="text" placeholder="플레이어 ${i + 1}" value="${existingNames[i] || ''}"
             class="player-input"
-            style="flex:1;padding:12px 16px;border-radius:12px;border:2px solid ${COLORS.secondary};background:${COLORS.bgLight};color:white;font-size:16px;font-family:'Noto Sans KR',sans-serif;outline:none;--player-color:${color};"
+            style="flex:1;padding:12px 16px;border-radius:12px;border:2px solid ${COLORS.secondary};background:${COLORS.bgLight};color:white;font-size:16px;font-family:'Noto Sans KR','Outfit',sans-serif;outline:none;--player-color:${color};"
             maxlength="10" />
         </div>
       `;
@@ -873,9 +899,36 @@ function renderRoundIntro(): void {
   `;
   document.getElementById('btn-next')!.addEventListener('click', () => {
     currentPlayerIndex = 0;
-    currentPhase = 'passPhone';
-    render();
+    showCountdown(() => {
+      currentPhase = 'passPhone';
+      render();
+    });
   });
+}
+
+function showCountdown(callback: () => void): void {
+  let count = 3;
+  app.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;background:linear-gradient(135deg,${COLORS.bg},${COLORS.accent});text-align:center;">
+      <p style="font-size:20px;color:${COLORS.yellow};font-weight:700;margin-bottom:30px;">준비하세요...</p>
+      <div id="countdown-num" style="font-family:'Outfit','Noto Sans KR',sans-serif;font-size:96px;font-weight:900;color:${COLORS.white};">3</div>
+    </div>
+  `;
+  const numEl = document.getElementById('countdown-num')!;
+  const interval = setInterval(() => {
+    count--;
+    if (count > 0) {
+      numEl.textContent = `${count}`;
+      numEl.style.transform = 'scale(1.3)';
+      numEl.style.transition = 'transform 0.2s ease-out';
+      setTimeout(() => { numEl.style.transform = 'scale(1)'; }, 200);
+      playPopSound();
+    } else {
+      clearInterval(interval);
+      playRevealSound();
+      callback();
+    }
+  }, 1000);
 }
 
 function renderPassPhone(): void {

@@ -695,15 +695,31 @@ export class UI {
   }
 
   private renderKeyboard(): void {
-    const { jamoStatuses } = this.game.state;
+    const { jamoStatuses, guesses, gameOver, won, answer } = this.game.state;
     const keys = this.keyboardEl.querySelectorAll('.key');
+
+    // After 4 wrong guesses (and not won/gameOver), show hint: first cho of answer
+    const wrongGuesses = guesses.filter(g => g.guess !== answer).length;
+    let hintJamo: string | null = null;
+    if (wrongGuesses >= 4 && !gameOver) {
+      const firstChar = answer[0];
+      const decomposed = decompose(firstChar);
+      if (decomposed) {
+        hintJamo = CHOSEONG[decomposed.cho];
+      }
+    }
+
     for (const btn of keys) {
       const key = (btn as HTMLElement).dataset.key;
       if (!key || key === 'ENTER' || key === 'BACK') continue;
       const status = jamoStatuses.get(key);
-      (btn as HTMLElement).classList.remove('key-correct', 'key-present', 'key-absent', 'key-misplaced');
+      (btn as HTMLElement).classList.remove('key-correct', 'key-present', 'key-absent', 'key-misplaced', 'key-hint');
       if (status) {
         (btn as HTMLElement).classList.add(`key-${status}`);
+      }
+      // Apply hint glow to the first choseong of the answer
+      if (hintJamo && key === hintJamo && !status) {
+        (btn as HTMLElement).classList.add('key-hint');
       }
     }
   }

@@ -55,6 +55,8 @@
 }
 
 .title {
+  font-family: 'Outfit', 'Noto Sans KR', sans-serif;
+  font-weight: 900;
   font-size: 22px;
   letter-spacing: 2px;
   color: #fff;
@@ -177,6 +179,8 @@
   width: 100%;
   height: 100%;
   font-size: 28px;
+  font-family: 'Noto Sans KR', 'Outfit', sans-serif;
+  font-weight: 400;
   color: #fff;
 }
 
@@ -200,6 +204,7 @@
   border-radius: 5px;
   font-size: 18px;
   font-weight: 700;
+  font-family: 'Noto Sans KR', 'Outfit', sans-serif;
   color: #fff;
   transition: background-color 0.2s;
 }
@@ -253,8 +258,8 @@
   background: linear-gradient(180deg, #606070 0%, #4a4a58 100%);
   color: #eee;
   font-size: 16px;
-  font-weight: 600;
-  font-family: inherit;
+  font-weight: 700;
+  font-family: 'Noto Sans KR', 'Outfit', sans-serif;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -326,6 +331,16 @@
   box-shadow: 0 2px 0 #4e3970, 0 3px 6px rgba(0,0,0,0.2);
 }
 
+/* Hint glow on keyboard key (after 4 wrong guesses) */
+@keyframes hintPulse {
+  0%, 100% { box-shadow: 0 2px 0 #333, 0 3px 6px rgba(0,0,0,0.2), 0 0 8px rgba(83,141,78,0.6); }
+  50% { box-shadow: 0 2px 0 #333, 0 3px 6px rgba(0,0,0,0.2), 0 0 16px rgba(83,141,78,0.9), 0 0 24px rgba(83,141,78,0.4); }
+}
+.key-hint {
+  animation: hintPulse 1.5s ease-in-out infinite !important;
+  border: 2px solid rgba(83, 141, 78, 0.7) !important;
+}
+
 /* Has-shift indicator dot */
 .key.has-shift::after {
   content: '';
@@ -380,6 +395,8 @@
   animation: modalSlideIn 0.35s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 .modal-content h2 {
+  font-family: 'Outfit', 'Noto Sans KR', sans-serif;
+  font-weight: 900;
   font-size: 22px;
   margin-bottom: 12px;
   text-align: center;
@@ -406,9 +423,9 @@
   background: #538d4e;
   color: #fff;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  font-family: inherit;
+  font-family: 'Noto Sans KR', 'Outfit', sans-serif;
   transition: background 0.15s;
 }
 .modal-close-btn:hover { background: #487a42; }
@@ -524,9 +541,9 @@
   background: #538d4e;
   color: #fff;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  font-family: inherit;
+  font-family: 'Noto Sans KR', 'Outfit', sans-serif;
   margin-bottom: 8px;
   transition: background 0.15s;
 }

@@ -398,7 +398,7 @@ export class Renderer {
   drawText(text, x, y, options = {}) {
     const ctx = this.ctx;
     const {
-      font = '16px sans-serif',
+      font = "16px 'Outfit', 'Noto Sans KR', sans-serif",
       color = '#ffffff',
       align = 'left',
       baseline = 'top',
